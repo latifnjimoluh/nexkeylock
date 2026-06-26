@@ -38,7 +38,28 @@ jobs:
       - name: cargo audit
         run: cargo audit
 
-  # Les jobs suivants sont activés au fil des jalons :
-  # - couverture (cargo-llvm-cov)  -> dès le Jalon 1
-  # - fuzz smoke (cargo-fuzz)      -> dès le Jalon 1/7
-  # Ils sont documentés ici et seront décommentés quand les cibles existeront.
+  couverture:
+    name: Couverture (cargo-llvm-cov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Installer cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+      - name: Mesurer la couverture (pm-crypto et pm-core)
+        run: >-
+          cargo llvm-cov --workspace --all-features
+          --lcov --output-path lcov.info
+          --fail-under-lines 90
+          -p nex-cryptographie -p nex-coffre
+      - name: Publier le rapport lcov
+        uses: actions/upload-artifact@v4
+        with:
+          name: couverture-lcov
+          path: lcov.info
+
+  # Le fuzz smoke (cargo-fuzz) sera activé au Jalon 1/7 quand les cibles
+  # existeront (désérialiseur d'en-tête, parseur de format, routine AEAD).
