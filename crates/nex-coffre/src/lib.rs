@@ -1,19 +1,30 @@
 //! # nex-coffre
 //!
-//! Logique du coffre zéro-connaissance de nexkeylock :
+//! Logique du coffre zéro-connaissance de nexkeylock, bâtie sur
+//! [`nex_cryptographie`] :
 //!
-//! - modèle de données des entrées (connexions, notes, cartes, identités…) ;
-//! - hiérarchie de clés à deux niveaux **KEK** (dérivée du mot de passe) qui
-//!   emballe la **DEK** (aléatoire) ;
-//! - format de coffre **versionné** et **authentifié** (en-tête passé comme
-//!   données associées de l'AEAD) ;
-//! - stockage fichier local, ouverture/fermeture, verrouillage automatique et
-//!   effacement mémoire au verrouillage.
+//! - [`modele`] : modèle de données des entrées (effacement automatique) ;
+//! - [`entete`] : en-tête versionné et **authentifié** (deux AAD) ;
+//! - [`format`] : format binaire sur disque (décodage fail-closed) ;
+//! - [`coffre`] : API verrouillé / déverrouillé, hiérarchie KEK/DEK, stockage
+//!   fichier atomique, changement de mot de passe (réemballage DEK), auto-lock.
 //!
-//! Cette couche ne connaît rien de l'interface utilisateur et s'appuie
-//! uniquement sur [`nex_cryptographie`] pour les primitives.
-//!
-//! > Squelette du Jalon 0 : le modèle et le format arrivent au Jalon 2.
+//! Cette couche ne connaît rien de l'interface utilisateur.
+
+pub mod coffre;
+pub mod entete;
+pub mod erreurs;
+pub mod format;
+pub mod modele;
+
+pub use coffre::{maintenant_unix, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille};
+pub use erreurs::ErreurCoffre;
+pub use modele::{ContenuCoffre, Entree, TypeEntree};
+
+// Réexports utiles pour configurer un coffre sans dépendre directement de
+// nex-cryptographie.
+pub use nex_cryptographie::aead::Algorithme;
+pub use nex_cryptographie::kdf::ParametresArgon2;
 
 /// Version de la bibliothèque, alignée sur le workspace.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

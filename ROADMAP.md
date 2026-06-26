@@ -133,26 +133,26 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 ### Jalon 2 — `nex-coffre` (MVP du coffre)
 **Objectif :** cycle de vie complet d'un coffre chiffré sur stockage fichier local.
 **Livrables de code :**
-- [ ] Modèle de données (entrées : connexion, etc.) avec `serde` + CBOR (`ciborium`).
-- [ ] Hiérarchie KEK/DEK : DEK aléatoire emballée par la KEK ; déballage à l'ouverture.
-- [ ] En-tête versionné et **authentifié** (paramètres KDF, sel, id de chiffrement, DEK emballée + nonce) passé en données associées de l'AEAD.
-- [ ] Chiffrement/déchiffrement du coffre ; stockage fichier unique local (`.vault`), écritures atomiques.
-- [ ] Ouverture/fermeture, verrouillage automatique (inactivité), effacement mémoire au verrouillage.
-- [ ] Changement de mot de passe maître = réemballage de la DEK uniquement.
-- [ ] Erreurs typées ; échec sûr partout.
+- [x] Modèle de données (`Entree`, `TypeEntree`, `ContenuCoffre`) avec `serde` + CBOR (`ciborium`), effacement automatique (`Zeroize`/`ZeroizeOnDrop`), `Debug` expurgé — `modele.rs`.
+- [x] Hiérarchie KEK/DEK : DEK aléatoire emballée par la KEK ; déballage à l'ouverture — `coffre.rs`.
+- [x] En-tête versionné et **authentifié** via **deux AAD** (`aad_dek` = version+algo+params+sel ; `aad_corps` = version+algo) — `entete.rs`.
+- [x] Format binaire `.vault` (magie + longueurs préfixées), décodage **fail-closed** ; écritures **atomiques** (fichier temporaire + renommage) — `format.rs`, `coffre.rs`.
+- [x] Ouverture/déverrouillage/verrouillage (machine à états typée), verrouillage automatique par inactivité (`est_inactif`/`toucher`), effacement mémoire au `drop`.
+- [x] Changement de mot de passe = **réemballage de la DEK uniquement** (nouveau sel, DEK inchangée).
+- [x] Erreurs typées (`thiserror`) ; échec sûr partout, sans secret dans les messages.
 
 **Plan de test :**
-- [ ] **Intégration cycle de vie** : créer → ajouter → verrouiller → déverrouiller → lire → modifier → supprimer → enregistrer → rouvrir, avec vérification d'intégrité.
-- [ ] Mauvais mot de passe maître ⇒ échec propre, sans fuite.
-- [ ] Coffre corrompu / tronqué / en-tête malformé ⇒ erreur typée, **aucun panic**.
-- [ ] Changement de mot de passe ⇒ DEK réemballée, coffre toujours déchiffrable, ancien mot de passe rejeté.
-- [ ] Tentative de **downgrade** de version/algorithme ⇒ rejetée.
-- [ ] Tests de propriétés sur la sérialisation et l'altération d'en-tête.
+- [x] **Intégration cycle de vie** : créer → ajouter → verrouiller → déverrouiller → lire → modifier → supprimer → enregistrer → rouvrir, avec vérification d'intégrité.
+- [x] Mauvais mot de passe maître ⇒ `MotDePasseInvalide`, sans fuite.
+- [x] Coffre corrompu / tronqué / magie corrompue ⇒ erreur typée, **aucun panic** (+ propriété : tout bit retourné échoue).
+- [x] Changement de mot de passe ⇒ DEK réemballée (nouveau sel), coffre toujours déchiffrable, ancien mot de passe rejeté.
+- [x] Tentative de **downgrade** de version ⇒ `VersionNonSupportee` ; substitution d'algorithme ⇒ rejetée.
+- [x] Tests de propriétés : aller-retour du contenu, altération d'un octet quelconque.
 
 **Critères d'acceptation :**
-- [ ] Tests d'intégration du cycle de vie verts ; tous les cas adversariaux échouent proprement sans panic.
-- [ ] Couverture ≥ 90 % sur `nex-coffre`.
-- [ ] « Définition de terminé » (§5) satisfaite.
+- [x] Tests d'intégration du cycle de vie verts (8) ; tous les cas adversariaux échouent proprement sans panic. 27 tests `nex-coffre` au total.
+- [~] Couverture ≥ 90 % sur `nex-coffre` — **portée par la CI** (voir Jalon 1).
+- [x] « Définition de terminé » (§5) satisfaite (build, test, clippy `-D warnings`, fmt, audit verts).
 
 ---
 

@@ -12,7 +12,12 @@ workspace = true
 
 [dependencies]
 nex-cryptographie = { path = "../nex-cryptographie" }
-# serde, ciborium, thiserror seront ajoutés au Jalon 2.
+serde.workspace = true
+ciborium.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
-# Tests d'intégration du cycle de vie (Jalon 2).
+proptest.workspace = true
+tempfile.workspace = true
+hex.workspace = true
