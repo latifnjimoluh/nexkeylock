@@ -1,0 +1,17 @@
+[package]
+name = "nex-cryptographie"
+description = "Primitives cryptographiques de nexkeylock : KDF (Argon2id), AEAD, HKDF, aléa, types secrets."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# Les dépendances cryptographiques seront ajoutées au Jalon 1 (TDD : vecteurs d'abord).
+
+[dev-dependencies]
+# Les outils de test (proptest, hex, hex-literal) seront ajoutés au Jalon 1.

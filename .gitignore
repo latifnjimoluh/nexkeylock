@@ -1,0 +1,26 @@
+# Artefacts de compilation Rust
+/target
+/crates/**/target
+**/*.rs.bk
+*.pdb
+
+# Fuzzing
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts
+
+# Coffres et secrets locaux — ne JAMAIS versionner
+*.vault
+*.vault.bak
+recovery-code.txt
+
+# Couverture
+/coverage
+*.profraw
+lcov.info
+
+# Divers OS / éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

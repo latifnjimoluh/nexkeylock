@@ -1,0 +1,72 @@
+# Manifeste du workspace nexkeylock.
+# Gestionnaire de mots de passe à architecture zéro-connaissance.
+#
+# Direction des dépendances (sens unique strict) :
+#   nex-console  ->  nex-coffre  ->  nex-cryptographie
+#
+# Toutes les versions des dépendances externes sont épinglées ici, de façon
+# centralisée, pour garantir l'agilité et faciliter `cargo audit`. Chaque crate
+# ne tire une dépendance que lorsque le jalon correspondant l'exige.
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/nex-cryptographie",
+    "crates/nex-coffre",
+    "crates/nex-console",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.83"
+license = "MIT OR Apache-2.0"
+authors = ["Équipe nexkeylock"]
+repository = "local"
+
+# --- Lints communs à tout le workspace ------------------------------------
+# Le code de bibliothèque n'a pas le droit d'utiliser unwrap()/expect() sur les
+# chemins touchant aux secrets ou aux données non fiables. On le force ici, et
+# on autorise unwrap/expect uniquement dans les tests via clippy.toml.
+[workspace.lints.rust]
+unsafe_code = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "warn"
+
+# --- Dépendances épinglées (centralisées) ---------------------------------
+# Déclarées ici dès le Jalon 0 ; référencées par les crates au fil des jalons.
+[workspace.dependencies]
+# Cryptographie (Jalon 1)
+argon2 = "0.5.3"
+chacha20poly1305 = "0.10.1"
+aes-gcm = "0.10.3"
+hkdf = "0.12.4"
+sha2 = "0.10.8"
+sha1 = "0.10.6"
+hmac = "0.12.1"
+getrandom = "0.2.15"
+rand = "0.8.5"
+zeroize = { version = "1.8.1", features = ["derive"] }
+secrecy = "0.8.0"
+subtle = "2.6.1"
+region = "3.0.2"
+# Sérialisation et stockage (Jalon 2+)
+serde = { version = "1.0.215", features = ["derive"] }
+ciborium = "0.2.2"
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+# Gestion d'erreurs
+thiserror = "1.0.69"
+anyhow = "1.0.93"
+# Interface en ligne de commande (Jalon 4)
+clap = { version = "4.5.21", features = ["derive"] }
+# Outils de test
+proptest = "1.5.0"
+assert_cmd = "2.0.16"
+predicates = "3.1.2"
+criterion = "0.5.1"
+hex = "0.4.3"
+hex-literal = "0.4.1"
+libfuzzer-sys = "0.4.7"

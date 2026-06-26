@@ -1,0 +1,3 @@
+# Configuration de formatage (rustfmt) — options stables uniquement.
+edition = "2021"
+max_width = 100

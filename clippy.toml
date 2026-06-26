@@ -1,0 +1,5 @@
+# Configuration Clippy.
+# On interdit unwrap()/expect() dans le code de bibliothèque (voir Cargo.toml),
+# mais on les autorise dans les tests où ils sont idiomatiques et sûrs.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

@@ -1,0 +1,22 @@
+[package]
+name = "nex-console"
+description = "Interface en ligne de commande de nexkeylock — le premier produit utilisable."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "nexkeylock"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-coffre = { path = "../nex-coffre" }
+# clap, anyhow seront ajoutés au Jalon 4.
+
+[dev-dependencies]
+# Tests end-to-end (assert_cmd, predicates) au Jalon 4.

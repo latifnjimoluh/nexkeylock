@@ -1,0 +1,18 @@
+[package]
+name = "nex-coffre"
+description = "Logique du coffre nexkeylock : modèle de données, hiérarchie KEK/DEK, format versionné et authentifié, stockage."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-cryptographie = { path = "../nex-cryptographie" }
+# serde, ciborium, thiserror seront ajoutés au Jalon 2.
+
+[dev-dependencies]
+# Tests d'intégration du cycle de vie (Jalon 2).

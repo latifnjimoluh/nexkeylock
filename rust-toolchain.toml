@@ -1,0 +1,6 @@
+# Chaîne d'outils Rust épinglée pour des compilations reproductibles.
+# Le fuzzing utilise une chaîne nightly séparée, isolée dans le dossier fuzz/.
+[toolchain]
+channel = "1.95.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

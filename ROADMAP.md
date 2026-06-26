@@ -1,0 +1,284 @@
+# FEUILLE DE ROUTE — nexkeylock
+
+> Gestionnaire de mots de passe à architecture **zéro-connaissance**, en Rust.
+> Ce fichier est à la fois le **plan** et le **tableau de bord** vivant. Les cases sont mises à jour à la fin de chaque jalon, accompagnées d'un commit atomique.
+
+**Légende :** `- [ ]` à faire · `- [~]` en cours · `- [x]` terminé et vert (selon la « Définition de terminé »).
+
+**Correspondance des noms de crates avec le brief** (tout est en français, identifiants compris) :
+
+| Brief | nexkeylock | Rôle |
+|---|---|---|
+| `pm-crypto` | `nex-cryptographie` | primitives cryptographiques |
+| `pm-core` | `nex-coffre` | logique du coffre |
+| `pm-cli` | `nex-console` | interface en ligne de commande |
+
+---
+
+## 1. Vision et périmètre
+
+Construire un gestionnaire de mots de passe où **seul l'utilisateur** peut déchiffrer ses données — aucun serveur, fournisseur ou administrateur ne voit jamais le clair. Tout le chiffrement se fait côté client. On **assemble des primitives auditées** ; on n'invente jamais de cryptographie.
+
+### Dans le périmètre — livrable principal (Jalons 0 à 5, entièrement construits et testés)
+- `nex-cryptographie` — cœur cryptographique (KDF, AEAD, HKDF, CSPRNG, types secrets, temps constant).
+- `nex-coffre` — logique du coffre (modèle de données, hiérarchie KEK/DEK, format versionné et authentifié, stockage local, verrouillage/déverrouillage, verrouillage automatique, effacement mémoire).
+- `nex-console` — premier produit utilisable : une interface en ligne de commande.
+- La **suite de tests complète** (unitaires, vecteurs officiels, propriétés, intégration, end-to-end, négatifs/adversariaux, fuzz smoke, benchmarks, couverture).
+
+### Différé — phases avancées (Jalon 6, structuré ici mais NON développé en avance)
+Synchronisation zéro-connaissance (auth par PAKE / double dérivation), partage chiffré de bout en bout (encapsulation hybride X25519 + ML-KEM-768), fournisseur de passkeys (FIDO2/WebAuthn), interface graphique Tauri, liaisons mobiles UniFFI, clés matérielles, accès d'urgence.
+
+### Conventions de langue
+À la demande explicite, **tout est en français** : code, identifiants, commentaires, messages de commit et documentation (`ROADMAP.md`, `README.md`, `SECURITY.md`, `TESTING.md`).
+
+---
+
+## 2. Décisions d'architecture
+
+### Structure du workspace
+```
+nexkeylock/
+├── Cargo.toml                 # manifeste du workspace (resolver = "2")
+├── rust-toolchain.toml        # chaîne stable épinglée (1.95.0)
+├── ROADMAP.md                 # ce fichier (tableau de bord)
+├── README.md                  # build/test/usage
+├── SECURITY.md                # modèle de menace + choix crypto + limites honnêtes
+├── TESTING.md                 # comment lancer chaque catégorie de tests
+├── deny.toml                  # cargo-deny (avis, licences) — porte d'audit
+├── rustfmt.toml / clippy.toml # configuration de formatage et de lint
+├── crates/
+│   ├── nex-cryptographie/  src/ tests/   # primitives + vecteurs + propriétés
+│   ├── nex-coffre/         src/ tests/   # modèle, KEK/DEK, format, stockage
+│   └── nex-console/        src/ tests/   # CLI + e2e (assert_cmd/predicates)
+├── fuzz/                        # cibles cargo-fuzz (nightly, isolé)
+└── .github/workflows/ci.yml    # fmt + clippy + test + fuzz smoke + couverture + audit
+```
+
+### Couches et sens des dépendances
+`nex-console` → `nex-coffre` → `nex-cryptographie`. Strictement à sens unique. `nex-cryptographie` ne connaît rien du coffre ; `nex-coffre` ne connaît rien de la CLI/du terminal. Cela garantit une **unique implémentation cryptographique** à auditer.
+
+### Gestion d'erreurs
+- Bibliothèques (`nex-cryptographie`, `nex-coffre`) : erreurs typées via `thiserror`. **Aucun `unwrap()`/`expect()`** sur un chemin touchant aux secrets ou aux données non fiables (forcé par Clippy : `unwrap_used`/`expect_used` = deny, autorisés en tests via `clippy.toml`). **Échec sûr** : une erreur de déchiffrement/authentification renvoie une erreur typée, jamais de donnée partielle.
+- CLI (`nex-console`) : `anyhow` au niveau supérieur, traduisant les erreurs typées en messages propres, **sans fuite de secret**.
+
+### Choix cryptographiques (source : brief §3 ; doc de conception §4)
+| Sujet | Décision |
+|---|---|
+| KDF | **Argon2id**, défaut `m = 262144 Kio (256 Mio)`, `t = 3`, `p = 4`, sortie 32 octets. Paramètres stockés dans l'en-tête (agilité). |
+| Replis KDF (documentés, non défaut) | scrypt `N=2^17, r=8, p=1` ; PBKDF2-HMAC-SHA256 `≥ 600 000` itér. (FIPS). |
+| Sel | ≥ 16 octets, CSPRNG, unique par coffre, stocké en clair (authentifié). |
+| AEAD (défaut) | **XChaCha20-Poly1305**, nonce 192 bits aléatoire (CSPRNG). |
+| AEAD (alt.) | **AES-256-GCM** avec nonce à **compteur persistant strictement croissant** (jamais aléatoire). `id_algorithme` stocké par blob. |
+| Règle nonce | Jamais de réutilisation d'un nonce avec une même clé. Jamais. |
+| Hiérarchie des clés | mot de passe → Argon2id → **KEK (256 bits)** ; **DEK (256 bits)** aléatoire emballée par la KEK. Changement de mot de passe = réemballage de la DEK seulement. |
+| Sous-clés | **HKDF-SHA256** avec étiquette de contexte. |
+| Aléa | CSPRNG du système uniquement (`OsRng` / `getrandom`). Jamais de PRNG non crypto pour clés/sels/nonces/mots de passe générés. |
+| Hygiène des secrets | `zeroize`/`secrecy` ; `mlock`/`VirtualLock` si disponible ; désactiver les core dumps ; comparaisons à temps constant via `subtle` ; aucun secret dans logs/erreurs/panics. |
+| En-tête | versionné + authentifié comme données associées de l'AEAD ; downgrade rejeté ; échec sûr. |
+
+### Dépendances épinglées
+Centralisées dans `[workspace.dependencies]` du `Cargo.toml` racine, tirées par crate au fil des jalons ; `cargo audit`/`cargo deny` maintenus propres. Cf. brief §4 pour la liste complète.
+
+### Cible de coût KDF en test (décision validée)
+Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par benchmark `criterion`). En **test/CI** : paramètres réduits (p. ex. `m=8 Mio, t=1`) pour la vitesse — **sauf les vecteurs officiels (KAT)** qui utilisent exactement les paramètres de la RFC.
+
+---
+
+## 3. Jalons
+
+### Jalon 0 — Fondations du projet
+**Objectif :** un workspace vide qui compile, sans avertissement de lint, avec CI et docs de politique.
+**Livrables de code :**
+- [x] `Cargo.toml` (workspace virtuel), `rust-toolchain.toml` (stable épinglé), `.gitignore`.
+- [x] Crates vides `nex-cryptographie`, `nex-coffre`, `nex-console` qui compilent.
+- [x] Configuration `clippy` + `rustfmt` ; `deny.toml`.
+- [x] `.github/workflows/ci.yml` : fmt + clippy `-D warnings` + test + audit.
+- [x] `ROADMAP.md` (ce fichier), brouillon `SECURITY.md`, `README.md`, `TESTING.md`.
+- [x] `git init`, commit initial.
+
+**Plan de test :** CI verte sur build vide ; `cargo fmt --check`, `cargo clippy -D warnings`, `cargo audit` propres.
+**Critères d'acceptation :**
+- [x] `cargo build`, `cargo test`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo fmt --all --check` passent (vérifié localement, toolchain 1.95.0 + VS Build Tools).
+- [x] `cargo audit` propre (aucune vulnérabilité).
+- [x] Pipeline CI défini.
+
+---
+
+### Jalon 1 — `nex-cryptographie` (cœur crypto) — **TDD : vecteurs d'abord**
+**Objectif :** des enveloppes correctes autour de primitives auditées, avec hygiène des secrets.
+**Livrables de code :**
+- [ ] Enveloppe KDF Argon2id (paramètres entrants/sortants, clé 32 octets).
+- [ ] AEAD : XChaCha20-Poly1305 (défaut) + AES-256-GCM (nonce à compteur), derrière une interface typée commune avec `id_algorithme`.
+- [ ] Dérivation de sous-clés HKDF-SHA256 avec étiquettes de contexte.
+- [ ] Aides CSPRNG (`OsRng`/`getrandom`) pour clés/sels/nonces.
+- [ ] Types secrets avec `Zeroize`/`Drop` ; égalité à temps constant via `subtle`.
+- [ ] Énumération d'erreurs typées (`thiserror`).
+
+**Plan de test (tests écrits avec — et vecteurs *avant* — chaque composant) :**
+- [ ] **Vecteurs officiels (KAT)** : Argon2id (RFC 9106), ChaCha20-Poly1305 / XChaCha20 (RFC 8439 + vecteurs XChaCha libsodium), AES-256-GCM (NIST CAVP), HKDF-SHA256 (RFC 5869).
+- [ ] **Propriétés (`proptest`)** : `decrypt(encrypt(x)) == x` ; retournement d'un bit du texte chiffré/tag/nonce/AAD ⇒ échec ; même clair deux fois ⇒ sorties différentes ; déterminisme du KDF (mêmes entrées ⇒ même clé ; sel différent ⇒ clé différente).
+- [ ] **Unitaires** : cas nominal/limite/erreur par fonction publique.
+- [ ] **Temps constant** : lint/test interdisant `==` sur les types secrets.
+- [ ] **Hygiène mémoire** : les types secrets implémentent `Zeroize` ; limites documentées.
+- [ ] **Benchmark (`criterion`)** : calibration Argon2id vers ~0,5 s ; débit AEAD.
+
+**Critères d'acceptation :**
+- [ ] Tous les KAT passent (un seul échec = implémentation fausse).
+- [ ] Tests propriétés + unitaires + temps constant verts.
+- [ ] Couverture ≥ 90 % sur `nex-cryptographie`.
+- [ ] « Définition de terminé » (§5) satisfaite.
+
+---
+
+### Jalon 2 — `nex-coffre` (MVP du coffre)
+**Objectif :** cycle de vie complet d'un coffre chiffré sur stockage fichier local.
+**Livrables de code :**
+- [ ] Modèle de données (entrées : connexion, etc.) avec `serde` + CBOR (`ciborium`).
+- [ ] Hiérarchie KEK/DEK : DEK aléatoire emballée par la KEK ; déballage à l'ouverture.
+- [ ] En-tête versionné et **authentifié** (paramètres KDF, sel, id de chiffrement, DEK emballée + nonce) passé en données associées de l'AEAD.
+- [ ] Chiffrement/déchiffrement du coffre ; stockage fichier unique local (`.vault`), écritures atomiques.
+- [ ] Ouverture/fermeture, verrouillage automatique (inactivité), effacement mémoire au verrouillage.
+- [ ] Changement de mot de passe maître = réemballage de la DEK uniquement.
+- [ ] Erreurs typées ; échec sûr partout.
+
+**Plan de test :**
+- [ ] **Intégration cycle de vie** : créer → ajouter → verrouiller → déverrouiller → lire → modifier → supprimer → enregistrer → rouvrir, avec vérification d'intégrité.
+- [ ] Mauvais mot de passe maître ⇒ échec propre, sans fuite.
+- [ ] Coffre corrompu / tronqué / en-tête malformé ⇒ erreur typée, **aucun panic**.
+- [ ] Changement de mot de passe ⇒ DEK réemballée, coffre toujours déchiffrable, ancien mot de passe rejeté.
+- [ ] Tentative de **downgrade** de version/algorithme ⇒ rejetée.
+- [ ] Tests de propriétés sur la sérialisation et l'altération d'en-tête.
+
+**Critères d'acceptation :**
+- [ ] Tests d'intégration du cycle de vie verts ; tous les cas adversariaux échouent proprement sans panic.
+- [ ] Couverture ≥ 90 % sur `nex-coffre`.
+- [ ] « Définition de terminé » (§5) satisfaite.
+
+---
+
+### Jalon 3 — Fonctions essentielles (dans `nex-coffre`)
+**Objectif :** les fonctions qui rendent le coffre réellement utile, toutes calculées localement.
+**Livrables de code :**
+- [ ] Générateur de mots de passe : non biaisé (rejet d'échantillonnage, CSPRNG), estimation d'entropie, jeux de caractères configurables, exclusion des caractères ambigus.
+- [ ] Générateur de phrases de passe (diceware, liste ≥ 7776 mots, entropie reportée).
+- [ ] TOTP (RFC 6238) via `hmac`+`sha1` local.
+- [ ] Recherche.
+- [ ] Audit local : mots de passe faibles / réutilisés / anciens / compromis.
+- [ ] Surveillance des fuites par **k-anonymat** (préfixe SHA-1 de 5 caractères), client HTTP derrière un trait — **mockable, aucun réseau réel en test**.
+
+**Plan de test :**
+- [ ] Vecteurs TOTP : RFC 6238 annexe B (temps fixés).
+- [ ] Générateur : test de biais/distribution ; tests unitaires du calcul d'entropie.
+- [ ] k-anonymat : tests avec client mocké ; vérifier que le mot de passe complet / le condensat entier n'est jamais envoyé.
+- [ ] Tests unitaires de la logique d'audit (réutilisé/faible/ancien).
+
+**Critères d'acceptation :**
+- [ ] Vecteurs RFC 6238 passent.
+- [ ] Aucun appel réseau réel dans un test ; générateur non biaisé.
+- [ ] « Définition de terminé » (§5) satisfaite.
+
+---
+
+### Jalon 4 — `nex-console`
+**Objectif :** le premier produit livrable.
+**Livrables de code :**
+- [ ] Commandes : `init`, `unlock`, `add`, `get`, `list`, `edit`, `rm`, `generate`, `audit`, `totp`, `export`, `import`, `change-password`.
+- [ ] Effacement du presse-papiers après délai ; comportement de verrouillage.
+- [ ] Erreurs `anyhow` au niveau supérieur, mappant les erreurs typées sans fuite de secret.
+
+**Plan de test :**
+- [ ] **E2E (`assert_cmd` + `predicates`)** : init, add puis get, generate, comportement de verrouillage, export/import, change-password.
+- [ ] Vérifier qu'**aucun secret** n'apparaît sur stdout/stderr/journaux.
+- [ ] Entrées CLI négatives gérées proprement.
+
+**Critères d'acceptation :**
+- [ ] Scénarios E2E verts ; aucune fuite de secret dans la sortie.
+- [ ] « Définition de terminé » (§5) satisfaite.
+
+---
+
+### Jalon 5 — Sauvegarde et récupération
+**Objectif :** retrouver l'accès sans casser le zéro-connaissance.
+**Livrables de code :**
+- [ ] Code de récupération : DEK emballée à la fois par la KEK **et** par une clé dérivée du code.
+- [ ] Export/import chiffrés (jamais en clair par défaut ; opt-in explicite + avertissement si proposé).
+- [ ] Flux de restauration.
+
+**Plan de test :**
+- [ ] Les deux voies de déballage testées (mot de passe maître ET code de récupération).
+- [ ] Aller-retour d'export chiffré ; export en clair derrière confirmation explicite.
+- [ ] Sauvegarde corrompue ⇒ échec sûr.
+
+**Critères d'acceptation :**
+- [ ] Les deux voies de déballage vérifiées ; sauvegardes toujours chiffrées par défaut.
+- [ ] « Définition de terminé » (§5) satisfaite.
+
+---
+
+### Jalon 6 — Avancé (DIFFÉRÉ — ne pas développer tant que 0–5 ne sont pas verts)
+Structuré maintenant, pas implémenté en avance.
+- [ ] Synchronisation zéro-connaissance (PAKE : OPAQUE/SRP, ou auth double dérivation).
+- [ ] Partage E2E (encapsulation de clé hybride X25519 + ML-KEM-768).
+- [ ] Fournisseur de passkeys (FIDO2/WebAuthn).
+- [ ] Interface graphique Tauri.
+- [ ] Liaisons mobiles UniFFI.
+- [ ] Clés matérielles, accès d'urgence.
+
+---
+
+### Jalon 7 — Durcissement et préparation d'audit
+**Objectif :** porter le niveau d'assurance à « prêt pour audit ».
+- [ ] Étendre le fuzzing : désérialiseur d'en-tête, parseur de format de coffre, routine de déchiffrement AEAD. Cibles propres (aucun panic/UB) sur passage court ; instructions de campagne longue documentées.
+- [ ] Atteindre les objectifs de couverture ; rapport publié en CI.
+- [ ] CI complète : fmt + clippy + test + fuzz smoke + couverture + audit.
+- [ ] Finaliser `SECURITY.md` ; écrire `TESTING.md` complet ; notes de préparation d'audit externe.
+
+---
+
+## 4. Stratégie de test globale (matrice)
+
+| Type de test | Outils | Emplacement principal |
+|---|---|---|
+| Unitaire | `#[cfg(test)]` | tous les crates |
+| Vecteurs officiels (KAT) | vecteurs RFC/NIST | `nex-cryptographie/tests`, `nex-coffre` (TOTP) |
+| Propriétés | `proptest` | `nex-cryptographie/tests`, `nex-coffre/tests` |
+| Intégration / cycle de vie | tests d'intégration std | `nex-coffre/tests` |
+| E2E CLI | `assert_cmd`, `predicates` | `nex-console/tests` |
+| Négatif / adversarial | std + corpus de fuzz | `nex-coffre/tests`, `fuzz/` |
+| Fuzzing | `cargo-fuzz` (nightly) | `fuzz/` |
+| Temps constant | `subtle` + lint/test | `nex-cryptographie` |
+| Hygiène mémoire | tests `zeroize`/`Drop` | `nex-cryptographie`, `nex-coffre` |
+| Benchmarks | `criterion` | `nex-cryptographie/benches` |
+| Couverture | `cargo-llvm-cov` | CI |
+
+**Objectif de couverture :** ≥ 90 % sur `nex-cryptographie` et `nex-coffre` ; raisonnable sur `nex-console`. Rapport en CI.
+
+---
+
+## 5. Définition de « terminé » (chaque jalon)
+Un jalon n'est terminé que si **tout** est vrai :
+- [ ] `cargo test` — tous les tests verts (unitaires, vecteurs, propriétés, intégration, e2e selon le jalon).
+- [ ] `cargo clippy --all-targets --all-features -- -D warnings` — aucun avertissement.
+- [ ] `cargo fmt --all --check` — code formaté.
+- [ ] Les vecteurs officiels applicables passent.
+- [ ] Les cibles de fuzz applicables tournent proprement sur un passage court.
+- [ ] Objectif de couverture atteint pour les crates concernés.
+- [ ] `cargo audit` — aucune vulnérabilité connue non traitée.
+- [ ] **Aucun secret** détectable dans les journaux, erreurs ou sorties.
+- [ ] `ROADMAP.md` mis à jour (cases cochées), commit(s) atomique(s) propre(s), docs à jour.
+
+---
+
+## 6. Risques et points ouverts (décisions de sécurité à trancher)
+- **Compteur de nonce AES-256-GCM** : nécessite un stockage de compteur durable et résistant aux crashs. Défaut conservateur = livrer XChaCha20-Poly1305 ; GCM en opt-in seulement une fois la persistance prouvée. *(Documenté dans SECURITY.md.)*
+- **TOTP dans le même coffre que le mot de passe** : réduit le 2FA à un facteur unique en cas de compromission — compromis commodité/sécurité ; à exposer clairement à l'utilisateur.
+- **Limites `mlock`/`VirtualLock`** : garanties au mieux, limites OS ; documenter honnêtement ce qui ne peut pas être garanti de façon déterministe.
+- **Effacement mémoire en Rust** : fort mais non absolu (copies en pile, tampons intermédiaires) ; limites honnêtes dans `SECURITY.md`.
+- **Client k-anonymat** : même un préfixe de 5 caractères fuit une information minimale ; abstrait derrière un trait, hors-ligne par défaut ; opt-in réseau.
+- **Repli FIPS (PBKDF2)** : fourni mais jamais défaut ; documenté comme inférieur.
+- **SQLite vs fichier unique** : le MVP utilise un fichier chiffré unique ; SQLite/SQLCipher différé sauf si le nombre d'entrées le justifie.
+- **Chaîne d'outils Windows** : la cible `x86_64-pc-windows-msvc` exige les VS C++ Build Tools (linker MSVC + Windows SDK), en cours d'installation. Toolchain épinglée à 1.95.0.
+
+---
+
+*Cette feuille de route est le tableau de bord du projet et sera tenue à jour en permanence.*

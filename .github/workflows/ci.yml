@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  qualite:
+    name: Format, Clippy et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer la chaîne d'outils (depuis rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Vérifier le formatage
+        run: cargo fmt --all --check
+      - name: Clippy (zéro avertissement)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Tests du workspace
+        run: cargo test --workspace --all-features
+
+  audit:
+    name: Audit des dépendances
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Installer cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit
+        run: cargo audit
+
+  # Les jobs suivants sont activés au fil des jalons :
+  # - couverture (cargo-llvm-cov)  -> dès le Jalon 1
+  # - fuzz smoke (cargo-fuzz)      -> dès le Jalon 1/7
+  # Ils sont documentés ici et seront décommentés quand les cibles existeront.
