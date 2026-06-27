@@ -36,11 +36,26 @@ nexkeylock est un gestionnaire de mots de passe **zéro-connaissance** : seul l'
 ## 4. Hygiène mémoire
 
 - Effacement des secrets via `zeroize`/`secrecy` (déterministe à la libération).
-- Verrouillage des pages (`mlock`/`VirtualLock`) lorsque la plateforme le permet — *au mieux*.
-- Désactivation des core dumps pour le processus.
+- **Verrouillage des pages des clés** (`VirtualLock` sous Windows, `mlock` sous
+  Unix) via la crate `region` : les tampons de `CleSecrete` (KEK, DEK, sous-clés)
+  sont alloués sur le **tas** (adresse stable) et leur page est verrouillée à la
+  création. À la libération, le tampon est **effacé tant qu'il est encore
+  verrouillé**, puis la page est déverrouillée et la mémoire restituée.
+  Durcissement **best-effort** : un refus de l'OS (quota `RLIMIT_MEMLOCK`,
+  plateforme restreinte) laisse la clé utilisable **sans** verrou, sans erreur.
+- **Désactivation des core dumps** : sous **Unix**, `RLIMIT_CORE` est fixé à 0 au
+  démarrage du processus (`nex-console`, module `durcissement`). Sous
+  **Windows**, les vidages utilisateur relèvent de *Windows Error Reporting*
+  (politique système) et ne sont **pas** désactivables de façon fiable par
+  l'application : non-opération assumée et documentée.
 - **Aucun secret** dans les journaux, messages d'erreur, `panic!` ou rapports de plantage.
 
-**Limites honnêtes :** en Rust, l'effacement est fort mais non absolu (copies en pile, tampons intermédiaires que le compilateur peut produire). `mlock`/`VirtualLock` dépendent des limites de l'OS. Ces limites seront documentées au fil de l'implémentation.
+**Limites honnêtes :** en Rust, l'effacement est fort mais non absolu (copies en
+pile, tampons intermédiaires que le compilateur peut produire). Le verrouillage
+de page ne couvre que les tampons de `CleSecrete`, **pas** les copies
+transitoires du clair (`String`/`Vec` produits par `serde` lors du
+(dé)chiffrement du corps). `mlock`/`VirtualLock` et `RLIMIT_CORE` restent soumis
+aux limites et à la politique de l'OS.
 
 ## 5. Décisions conservatrices prises (à valider)
 

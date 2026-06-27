@@ -21,6 +21,8 @@ getrandom.workspace = true
 rand.workspace = true
 zeroize.workspace = true
 subtle.workspace = true
+# Verrouillage des pages mémoire des secrets (VirtualLock/mlock), best-effort.
+region.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

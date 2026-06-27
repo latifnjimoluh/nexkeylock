@@ -59,6 +59,8 @@ zeroize = { version = "1.8.1", features = ["derive"] }
 secrecy = "0.8.0"
 subtle = "2.6.1"
 region = "3.0.2"
+# Durcissement du processus sous Unix (désactivation des core dumps).
+libc = "0.2"
 # Sérialisation et stockage (Jalon 2+)
 serde = { version = "1.0.215", features = ["derive"] }
 ciborium = "0.2.2"

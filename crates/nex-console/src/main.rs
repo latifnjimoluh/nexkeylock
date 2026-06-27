@@ -9,6 +9,7 @@
 //! `~/.nexkeylock/coffre.vault` par défaut.
 
 mod avance;
+mod durcissement;
 mod presse_papiers;
 mod saisie;
 
@@ -187,6 +188,11 @@ struct ArgsGenerate {
 }
 
 fn main() -> ExitCode {
+    // Durcissement du processus dès le démarrage, avant toute manipulation de
+    // secret (désactivation des core dumps ; le verrouillage des pages de clés
+    // est porté par les types secrets de nex-cryptographie).
+    durcissement::desactiver_core_dumps();
+
     let cli = Cli::parse();
     match executer(cli) {
         Ok(()) => ExitCode::SUCCESS,
