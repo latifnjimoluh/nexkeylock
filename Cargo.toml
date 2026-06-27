@@ -15,6 +15,7 @@ members = [
     "crates/nex-coffre",
     "crates/nex-console",
     "crates/nex-partage",
+    "crates/nex-sync",
 ]
 # Le dossier fuzz/ utilise la toolchain nightly + libFuzzer : isolé du workspace.
 exclude = ["fuzz"]

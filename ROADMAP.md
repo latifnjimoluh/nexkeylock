@@ -221,7 +221,9 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
   - [x] **Sérialisation** en octets (longueur-préfixée, fail-closed) de tout : bundle public, clés privées (`Zeroizing`), encapsulation, message — pour transport et stockage.
   - [x] **Intégration au coffre** : champ `identite_partage` dans `ContenuCoffre` + `definir_identite_partage` / `identite_partage` ; test bout en bout (coffre stocke l'identité → réouverture → réception d'un message E2E).
   - [x] Déterminisme ML-KEM testé (RNG ensemencé) ; conformité FIPS 203 / NIST ACVP **déléguée à la crate auditée `ml-kem`** (documenté). 14 tests `nex-partage` + 1 d'intégration.
-- [ ] Synchronisation zéro-connaissance (PAKE : OPAQUE/SRP, ou auth double dérivation).
+- [x] **Synchronisation zéro-connaissance** (crate `nex-sync`, séparé du cœur) :
+  - [x] **Authentification par double dérivation** : hash d'authentification (HKDF, contexte distinct) indépendant de la clé de chiffrement ; `Verificateur` serveur salé, comparaison à **temps constant** ; une fuite serveur n'expose ni la clé maître, ni la clé de chiffrement, ni le coffre.
+  - [x] **Transport zéro-connaissance** : dépôt abstrait *mockable* (`DepotSync`) qui ne voit que des **blobs chiffrés opaques** + révision ; **concurrence optimiste** (détection de conflits, rebase). 9 tests + intégration : un coffre chiffré transite par le dépôt (vérifié : aucun nom/secret d'entrée en clair) et est rouvert intact par un second client.
 - [ ] Fournisseur de passkeys (FIDO2/WebAuthn).
 - [ ] Interface graphique Tauri.
 - [ ] Liaisons mobiles UniFFI.

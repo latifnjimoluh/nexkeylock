@@ -1,0 +1,19 @@
+[package]
+name = "nex-sync"
+description = "Synchronisation zéro-connaissance : authentification par double dérivation et transport de blobs chiffrés opaques."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-cryptographie = { path = "../nex-cryptographie" }
+thiserror.workspace = true
+
+[dev-dependencies]
+nex-coffre = { path = "../nex-coffre" }
+tempfile.workspace = true

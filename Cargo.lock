@@ -970,6 +970,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nex-sync"
+version = "0.0.0"
+dependencies = [
+ "nex-coffre",
+ "nex-cryptographie",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "normalize-line-endings"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

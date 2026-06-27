@@ -74,6 +74,23 @@ aller-retour, sérialisation, déterminisme). L'identité de partage (clés priv
 est stockée chiffrée dans le corps du coffre et effacée en mémoire à la
 libération.
 
+## 6 ter. Synchronisation zéro-connaissance (avancé)
+
+Le crate `nex-sync` (séparé du cœur, Jalon 6) fournit deux briques :
+
+- **Authentification par double dérivation** : depuis la clé maître (Argon2id),
+  on dérive par HKDF-SHA256, avec des étiquettes de contexte **distinctes**, une
+  clé de chiffrement (locale) et un hash d'authentification (envoyé au serveur).
+  Les deux sont indépendants (HKDF à sens unique) : connaître le hash
+  d'authentification ne révèle rien de la clé de chiffrement. Le serveur ne
+  stocke qu'un **vérificateur salé** comparé à **temps constant** ; une fuite de
+  sa base n'expose ni le mot de passe, ni la clé maître, ni le coffre.
+- **Transport zéro-connaissance** : le dépôt distant ne voit que des **blobs
+  chiffrés opaques** et une révision monotone (vérifié par test : aucun nom ni
+  secret d'entrée n'apparaît en clair côté dépôt). La concurrence est gérée de
+  façon **optimiste** (un envoi n'est accepté que sur la bonne révision de
+  base) ; la fusion éventuelle se fait **côté client, après déchiffrement**.
+
 ## 7. Préparation à un audit externe
 
 État au terme des jalons 0–5 : cœur cryptographique validé par vecteurs
