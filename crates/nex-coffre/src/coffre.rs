@@ -171,6 +171,28 @@ impl CoffreDeverrouille {
         self.contenu.obtenir(id)
     }
 
+    /// Recherche les entrées dont le nom, une URI ou le nom d'utilisateur
+    /// contient `requete` (sans tenir compte de la casse).
+    pub fn rechercher(&self, requete: &str) -> Vec<&Entree> {
+        let requete = requete.to_lowercase();
+        self.contenu
+            .entrees
+            .iter()
+            .filter(|e| {
+                e.nom.to_lowercase().contains(&requete)
+                    || e.nom_utilisateur
+                        .as_deref()
+                        .is_some_and(|u| u.to_lowercase().contains(&requete))
+                    || e.uris.iter().any(|u| u.to_lowercase().contains(&requete))
+            })
+            .collect()
+    }
+
+    /// Accès au contenu déchiffré (pour l'audit hors-ligne).
+    pub fn contenu(&self) -> &ContenuCoffre {
+        &self.contenu
+    }
+
     /// Ajoute une entrée au coffre (en mémoire ; appeler [`Self::enregistrer`]
     /// pour persister).
     pub fn ajouter(&mut self, entree: Entree) {

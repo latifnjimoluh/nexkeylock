@@ -50,4 +50,20 @@ pub enum ErreurCoffre {
     /// Aucune entrée ne correspond à l'identifiant fourni.
     #[error("entrée introuvable")]
     EntreeIntrouvable,
+
+    /// Options de génération de mot de passe invalides (jeu vide, longueur 0…).
+    #[error("options de génération invalides")]
+    OptionsGenerateur,
+
+    /// Erreur lors du calcul TOTP (clé invalide, paramètres hors bornes).
+    #[error("erreur de calcul TOTP")]
+    Totp,
+
+    /// Chaîne Base32 invalide (secret TOTP mal formé).
+    #[error("chaîne Base32 invalide")]
+    Base32Invalide,
+
+    /// Échec de la consultation du service de fuites (k-anonymat).
+    #[error("échec de la consultation du service de fuites")]
+    Fuites,
 }

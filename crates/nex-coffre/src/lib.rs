@@ -7,15 +7,22 @@
 //! - [`entete`] : en-tête versionné et **authentifié** (deux AAD) ;
 //! - [`format`] : format binaire sur disque (décodage fail-closed) ;
 //! - [`coffre`] : API verrouillé / déverrouillé, hiérarchie KEK/DEK, stockage
-//!   fichier atomique, changement de mot de passe (réemballage DEK), auto-lock.
+//!   fichier atomique, changement de mot de passe (réemballage DEK), auto-lock,
+//!   recherche ;
+//! - [`generateur`] : mots de passe non biaisés et phrases de passe diceware ;
+//! - [`totp`] : codes TOTP (RFC 6238) ;
+//! - [`audit`] : audit hors-ligne et surveillance des fuites par k-anonymat.
 //!
 //! Cette couche ne connaît rien de l'interface utilisateur.
 
+pub mod audit;
 pub mod coffre;
 pub mod entete;
 pub mod erreurs;
 pub mod format;
+pub mod generateur;
 pub mod modele;
+pub mod totp;
 
 pub use coffre::{maintenant_unix, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille};
 pub use erreurs::ErreurCoffre;

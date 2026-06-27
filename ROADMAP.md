@@ -159,23 +159,23 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 ### Jalon 3 — Fonctions essentielles (dans `nex-coffre`)
 **Objectif :** les fonctions qui rendent le coffre réellement utile, toutes calculées localement.
 **Livrables de code :**
-- [ ] Générateur de mots de passe : non biaisé (rejet d'échantillonnage, CSPRNG), estimation d'entropie, jeux de caractères configurables, exclusion des caractères ambigus.
-- [ ] Générateur de phrases de passe (diceware, liste ≥ 7776 mots, entropie reportée).
-- [ ] TOTP (RFC 6238) via `hmac`+`sha1` local.
-- [ ] Recherche.
-- [ ] Audit local : mots de passe faibles / réutilisés / anciens / compromis.
-- [ ] Surveillance des fuites par **k-anonymat** (préfixe SHA-1 de 5 caractères), client HTTP derrière un trait — **mockable, aucun réseau réel en test**.
+- [x] Générateur de mots de passe non biaisé (rejet d'échantillonnage, CSPRNG), estimation d'entropie, jeux configurables, exclusion des ambigus, sortie `Zeroizing` — `generateur.rs`.
+- [x] Générateur de phrases de passe diceware (liste **EFF de 7776 mots** embarquée, entropie reportée).
+- [x] TOTP (RFC 6238) via `hmac`+`sha1` local, + décodage Base32 (RFC 4648) — `totp.rs`.
+- [x] Recherche (nom/URI/utilisateur, insensible à la casse) — `CoffreDeverrouille::rechercher`.
+- [x] Audit local : mots de passe faibles / réutilisés / anciens ; estimation d'entropie — `audit.rs`.
+- [x] Surveillance des fuites par **k-anonymat** (préfixe SHA-1 de 5 caractères) derrière le trait `FournisseurFuites` — **mockable, aucun réseau réel**.
 
 **Plan de test :**
-- [ ] Vecteurs TOTP : RFC 6238 annexe B (temps fixés).
-- [ ] Générateur : test de biais/distribution ; tests unitaires du calcul d'entropie.
-- [ ] k-anonymat : tests avec client mocké ; vérifier que le mot de passe complet / le condensat entier n'est jamais envoyé.
-- [ ] Tests unitaires de la logique d'audit (réutilisé/faible/ancien).
+- [x] Vecteurs TOTP : RFC 6238 annexe B (6 temps fixés, variante SHA-1, 8 chiffres) — passent.
+- [x] Générateur : tirage non dégénéré (toutes les lettres apparaissent), bornes de l'index uniforme, calcul d'entropie ; liste EFF = 7776 mots uniques.
+- [x] k-anonymat : client simulé ; **vérifié** que seul un préfixe de 5 caractères est transmis (jamais le condensat complet).
+- [x] Audit : détection faibles / réutilisés / anciens ; Base32 (`foobar`) et aller-retour Base32→TOTP.
 
 **Critères d'acceptation :**
-- [ ] Vecteurs RFC 6238 passent.
-- [ ] Aucun appel réseau réel dans un test ; générateur non biaisé.
-- [ ] « Définition de terminé » (§5) satisfaite.
+- [x] Vecteurs RFC 6238 passent.
+- [x] Aucun appel réseau réel dans un test ; générateur non biaisé.
+- [x] « Définition de terminé » (§5) satisfaite (build, test, clippy `-D warnings`, fmt, audit verts).
 
 ---
 

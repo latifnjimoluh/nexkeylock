@@ -73,6 +73,24 @@ fn cycle_de_vie_complet() {
 }
 
 #[test]
+fn recherche_par_nom_uri_utilisateur() {
+    let (_dir, chemin) = coffre_temp();
+    let mut coffre = CoffreDeverrouille::creer(&chemin, b"mdp", params()).unwrap();
+
+    let mut banque = Entree::connexion("b", "Ma Banque", 0);
+    banque.uris = vec!["https://banque.example".to_string()];
+    banque.nom_utilisateur = Some("jean".to_string());
+    coffre.ajouter(banque);
+    coffre.ajouter(Entree::connexion("c", "Courriel", 0));
+
+    assert_eq!(coffre.rechercher("banque").len(), 1);
+    assert_eq!(coffre.rechercher("BANQUE.EXAMPLE").len(), 1);
+    assert_eq!(coffre.rechercher("jean").len(), 1);
+    assert_eq!(coffre.rechercher("courriel").len(), 1);
+    assert_eq!(coffre.rechercher("introuvable").len(), 0);
+}
+
+#[test]
 fn mauvais_mot_de_passe_rejete_sans_fuite() {
     let (_dir, chemin) = coffre_temp();
     CoffreDeverrouille::creer(&chemin, b"le bon mot de passe", params()).unwrap();

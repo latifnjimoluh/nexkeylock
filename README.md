@@ -38,6 +38,11 @@ cargo fmt --all --check
 
 Voir [`TESTING.md`](TESTING.md) pour le détail des catégories de tests.
 
+## Crédits
+
+La liste de mots diceware embarquée provient de l'**EFF** (*EFF Large Wordlist*,
+7776 mots), publiée sous licence **CC-BY 3.0 US**.
+
 ## Licence
 
-`MIT OR Apache-2.0`.
+`MIT OR Apache-2.0` (le code). La liste de mots EFF conserve sa licence CC-BY 3.0 US.

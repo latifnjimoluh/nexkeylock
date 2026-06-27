@@ -16,6 +16,8 @@ serde.workspace = true
 ciborium.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
+hmac.workspace = true
+sha1.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
