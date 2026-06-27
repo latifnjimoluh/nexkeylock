@@ -56,7 +56,6 @@ hmac = "0.12.1"
 getrandom = "0.2.15"
 rand = "0.8.5"
 zeroize = { version = "1.8.1", features = ["derive"] }
-secrecy = "0.8.0"
 subtle = "2.6.1"
 region = "3.0.2"
 # Durcissement du processus sous Unix (désactivation des core dumps).
@@ -64,7 +63,8 @@ libc = "0.2"
 # Sérialisation et stockage (Jalon 2+)
 serde = { version = "1.0.215", features = ["derive"] }
 ciborium = "0.2.2"
-rusqlite = { version = "0.32.1", features = ["bundled"] }
+# Note : le stockage SQLite/SQLCipher (rusqlite) est différé (MVP fichier
+# unique). La dépendance sera (ré)introduite au jalon correspondant.
 tempfile = "3.27.0"
 # Gestion d'erreurs
 thiserror = "1.0.69"

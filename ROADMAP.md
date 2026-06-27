@@ -73,7 +73,7 @@ nexkeylock/
 | Hiérarchie des clés | mot de passe → Argon2id → **KEK (256 bits)** ; **DEK (256 bits)** aléatoire emballée par la KEK. Changement de mot de passe = réemballage de la DEK seulement. |
 | Sous-clés | **HKDF-SHA256** avec étiquette de contexte. |
 | Aléa | CSPRNG du système uniquement (`OsRng` / `getrandom`). Jamais de PRNG non crypto pour clés/sels/nonces/mots de passe générés. |
-| Hygiène des secrets | `zeroize`/`secrecy` ; `mlock`/`VirtualLock` si disponible ; désactiver les core dumps ; comparaisons à temps constant via `subtle` ; aucun secret dans logs/erreurs/panics. |
+| Hygiène des secrets | `zeroize` (`Zeroizing`/`ZeroizeOnDrop`) ; verrouillage de page best-effort via `region` (`mlock`/`VirtualLock`) ; core dumps désactivés (Unix `RLIMIT_CORE=0`) ; comparaisons à temps constant via `subtle` ; aucun secret dans logs/erreurs/panics. |
 | En-tête | versionné + authentifié comme données associées de l'AEAD ; downgrade rejeté ; échec sûr. |
 
 ### Dépendances épinglées

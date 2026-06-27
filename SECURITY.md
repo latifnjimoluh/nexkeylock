@@ -35,7 +35,8 @@ nexkeylock est un gestionnaire de mots de passe **zéro-connaissance** : seul l'
 
 ## 4. Hygiène mémoire
 
-- Effacement des secrets via `zeroize`/`secrecy` (déterministe à la libération).
+- Effacement des secrets via `zeroize` (`Zeroizing`/`ZeroizeOnDrop`),
+  déterministe à la libération.
 - **Verrouillage des pages des clés** (`VirtualLock` sous Windows, `mlock` sous
   Unix) via la crate `region` : les tampons de `CleSecrete` (KEK, DEK, sous-clés)
   sont alloués sur le **tas** (adresse stable) et leur page est verrouillée à la

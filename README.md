@@ -12,7 +12,7 @@ Seul l'utilisateur peut déchiffrer ses données. Tout le chiffrement se fait c�
 - Dérivation de clé : **Argon2id**.
 - Chiffrement authentifié : **XChaCha20-Poly1305** (défaut), **AES-256-GCM** (alternative).
 - Hiérarchie de clés **KEK/DEK** : changer le mot de passe maître ne rechiffre pas tout le coffre.
-- Sous-clés : **HKDF-SHA256**. Aléa : **CSPRNG système**. Secrets : `zeroize`/`secrecy`.
+- Sous-clés : **HKDF-SHA256**. Aléa : **CSPRNG système**. Secrets : `zeroize` (effacement) + verrouillage de page best-effort (`region`).
 
 Voir [`SECURITY.md`](SECURITY.md) pour le modèle de menace et les choix cryptographiques, et [`ROADMAP.md`](ROADMAP.md) pour le plan et l'état d'avancement.
 
