@@ -224,10 +224,11 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 - [x] **Synchronisation zéro-connaissance** (crate `nex-sync`, séparé du cœur) :
   - [x] **Authentification par double dérivation** : hash d'authentification (HKDF, contexte distinct) indépendant de la clé de chiffrement ; `Verificateur` serveur salé, comparaison à **temps constant** ; une fuite serveur n'expose ni la clé maître, ni la clé de chiffrement, ni le coffre.
   - [x] **Transport zéro-connaissance** : dépôt abstrait *mockable* (`DepotSync`) qui ne voit que des **blobs chiffrés opaques** + révision ; **concurrence optimiste** (détection de conflits, rebase). 9 tests + intégration : un coffre chiffré transite par le dépôt (vérifié : aucun nom/secret d'entrée en clair) et est rouvert intact par un second client.
-- [ ] Fournisseur de passkeys (FIDO2/WebAuthn).
-- [ ] Interface graphique Tauri.
-- [ ] Liaisons mobiles UniFFI.
-- [ ] Clés matérielles, accès d'urgence.
+- [x] **Cœur passkey (FIDO2/WebAuthn)** (crate `nex-passkey`) : clés Ed25519 par site, signature/vérification d'assertion **liée au domaine** (anti-hameçonnage : `rp_id` et origine couverts par la signature), compteur, sérialisation pour stockage chiffré. 9 tests. *Périmètre : cœur crypto ; l'intégration complète du protocole FIDO2 (CTAP2, attestation, API navigateur/plateforme) reste à faire.*
+- [x] **Accès d'urgence** (crate `nex-urgence`) : matériel d'accès **scellé** vers un contact via le partage hybride PQ + **mécanisme à délai** (demande → refus possible → libération à l'échéance ; le serveur ne déchiffre rien). 4 tests.
+- [ ] **Clés matérielles** (YubiKey/FIDO2) — dépend du matériel, non réalisable/testable sans périphérique.
+- [ ] **Interface graphique Tauri** — infrastructure (webview + frontend) ; non validable dans cet environnement.
+- [ ] **Liaisons mobiles UniFFI** — génération d'interfaces Swift/Kotlin ; scaffold possible, mais non testable sans toolchains mobiles.
 
 ---
 

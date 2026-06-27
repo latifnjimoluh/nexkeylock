@@ -91,6 +91,21 @@ Le crate `nex-sync` (séparé du cœur, Jalon 6) fournit deux briques :
   façon **optimiste** (un envoi n'est accepté que sur la bonne révision de
   base) ; la fusion éventuelle se fait **côté client, après déchiffrement**.
 
+## 6 quater. Passkeys et accès d'urgence (avancé)
+
+- **Passkeys** (`nex-passkey`) : clés **Ed25519** par site. La signature
+  d'assertion couvre le condensat du `rp_id` (données d'authentificateur) et
+  l'origine (données client) — **résistance à l'hameçonnage par construction**
+  (vérifié par test : mauvais domaine/origine/défi ⇒ rejet). La clé privée est
+  destinée à un stockage **chiffré** dans le coffre (sérialisation `Zeroizing`).
+  Périmètre crypto uniquement ; le protocole FIDO2 complet (CTAP2, attestation)
+  n'est pas couvert.
+- **Accès d'urgence** (`nex-urgence`) : le matériel d'accès est **scellé** vers
+  un contact via le partage hybride post-quantique ; un **mécanisme à délai**
+  (détenu par le serveur) ne libère le blob qu'à l'échéance, sauf refus du
+  propriétaire. Le serveur ne peut rien déchiffrer ; seul le contact, avec ses
+  clés privées, ouvre le matériel.
+
 ## 7. Préparation à un audit externe
 
 État au terme des jalons 0–5 : cœur cryptographique validé par vecteurs

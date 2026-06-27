@@ -1,0 +1,15 @@
+[package]
+name = "nex-urgence"
+description = "Accès d'urgence : scellement de matériel d'accès vers un contact de confiance, avec mécanisme à délai."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-partage = { path = "../nex-partage" }
+thiserror.workspace = true

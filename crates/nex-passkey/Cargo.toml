@@ -1,0 +1,18 @@
+[package]
+name = "nex-passkey"
+description = "Cœur passkey (WebAuthn/FIDO2) : clés Ed25519 par site, assertions liées au domaine (anti-hameçonnage)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-cryptographie = { path = "../nex-cryptographie" }
+ed25519-dalek.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true
