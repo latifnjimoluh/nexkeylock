@@ -86,7 +86,11 @@ impl core::fmt::Debug for Entree {
 }
 
 /// Contenu déchiffré complet du coffre (sérialisé en CBOR avant chiffrement).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
+///
+/// `Debug` est implémenté **manuellement** (expurgé) : les champs
+/// `identite_partage` et `passkeys` portent des **clés privées** sérialisées en
+/// clair ; un `Debug` dérivé les divulguerait intégralement.
+#[derive(Clone, Default, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct ContenuCoffre {
     /// Entrées du coffre.
     pub entrees: Vec<Entree>,
@@ -97,6 +101,22 @@ pub struct ContenuCoffre {
     /// Passkeys (WebAuthn) sérialisées, clés privées incluses, le cas échéant.
     #[serde(default)]
     pub passkeys: Vec<Vec<u8>>,
+}
+
+impl core::fmt::Debug for ContenuCoffre {
+    /// `Debug` expurgé : aucune clé privée n'est divulguée. Les entrées passent
+    /// par leur propre `Debug` expurgé ; l'identité de partage et les passkeys
+    /// ne révèlent que leur présence/quantité, jamais leurs octets.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("ContenuCoffre")
+            .field("entrees", &self.entrees)
+            .field(
+                "identite_partage",
+                &self.identite_partage.as_ref().map(|_| "***"),
+            )
+            .field("nombre_passkeys", &self.passkeys.len())
+            .finish()
+    }
 }
 
 impl ContenuCoffre {
@@ -131,6 +151,28 @@ mod tests {
         assert!(!rendu.contains("super-secret"));
         assert!(!rendu.contains("confidentielle"));
         assert!(rendu.contains("***"));
+        assert!(rendu.contains("Banque"));
+    }
+
+    #[test]
+    fn debug_contenu_n_expose_pas_les_cles_privees() {
+        let mut c = ContenuCoffre::default();
+        // Octets « privés » reconnaissables (clés de partage / passkeys).
+        c.identite_partage = Some(vec![0xDE, 0xAD, 0xBE, 0xEF]);
+        c.passkeys = vec![vec![0xC0, 0xFF, 0xEE]];
+        let mut entree = Entree::connexion("id1", "Banque", 0);
+        entree.mot_de_passe = Some("motdepasse-secret".to_string());
+        c.entrees.push(entree);
+
+        let rendu = format!("{c:?}");
+        // Aucun octet de clé privée ni mot de passe ne doit apparaître.
+        assert!(!rendu.contains("deadbeef"));
+        assert!(!rendu.contains("222")); // 0xDE = 222 en décimal
+        assert!(!rendu.contains("192")); // 0xC0 = 192 en décimal
+        assert!(!rendu.contains("motdepasse-secret"));
+        // Mais la structure reste lisible (présence + quantités).
+        assert!(rendu.contains("***"));
+        assert!(rendu.contains("nombre_passkeys"));
         assert!(rendu.contains("Banque"));
     }
 
