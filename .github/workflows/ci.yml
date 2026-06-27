@@ -57,7 +57,7 @@ jobs:
           --fail-under-lines 90
           -p nex-cryptographie -p nex-coffre
       - name: Publier le rapport lcov
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: couverture-lcov
           path: lcov.info
