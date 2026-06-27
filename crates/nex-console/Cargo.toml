@@ -14,9 +14,20 @@ path = "src/main.rs"
 [lints]
 workspace = true
 
+[features]
+# Support du presse-papiers (désactivé par défaut pour ne pas dépendre des
+# bibliothèques système X11/Wayland en CI). Activer avec --features presse-papiers.
+presse-papiers = ["dep:arboard"]
+
 [dependencies]
 nex-coffre = { path = "../nex-coffre" }
-# clap, anyhow seront ajoutés au Jalon 4.
+clap.workspace = true
+anyhow.workspace = true
+zeroize.workspace = true
+rpassword.workspace = true
+arboard = { workspace = true, optional = true }
 
 [dev-dependencies]
-# Tests end-to-end (assert_cmd, predicates) au Jalon 4.
+assert_cmd.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

@@ -38,6 +38,30 @@ cargo fmt --all --check
 
 Voir [`TESTING.md`](TESTING.md) pour le détail des catégories de tests.
 
+## Utilisation (CLI `nexkeylock`)
+
+```sh
+# Créer un coffre (~/.nexkeylock/coffre.vault par défaut, ou --coffre <chemin>)
+nexkeylock init
+
+# Ajouter une entrée avec un mot de passe généré de 24 caractères
+nexkeylock add "Banque" --utilisateur jean --generer --longueur 24
+
+# Lister, afficher, rechercher
+nexkeylock list
+nexkeylock get Banque
+
+# Générer (sans coffre), auditer, TOTP, changer le mot de passe maître
+nexkeylock generate --longueur 20
+nexkeylock generate --mots 6          # phrase de passe diceware
+nexkeylock audit
+nexkeylock change-password
+```
+
+Le mot de passe maître se saisit de façon masquée, ou via la variable
+`NEXKEYLOCK_MDP` (automatisation). Compiler avec `--features presse-papiers`
+pour activer la copie presse-papiers (`get --copier`).
+
 ## Crédits
 
 La liste de mots diceware embarquée provient de l'**EFF** (*EFF Large Wordlist*,

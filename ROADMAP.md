@@ -182,18 +182,19 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 ### Jalon 4 — `nex-console`
 **Objectif :** le premier produit livrable.
 **Livrables de code :**
-- [ ] Commandes : `init`, `unlock`, `add`, `get`, `list`, `edit`, `rm`, `generate`, `audit`, `totp`, `export`, `import`, `change-password`.
-- [ ] Effacement du presse-papiers après délai ; comportement de verrouillage.
-- [ ] Erreurs `anyhow` au niveau supérieur, mappant les erreurs typées sans fuite de secret.
+- [x] Commandes : `init`, `unlock`, `add`, `get`, `list`, `edit`, `rm`, `generate`, `audit`, `totp`, `export`, `import`, `change-password` (binaire `nexkeylock`).
+- [x] Saisie masquée (`rpassword`) ou via `NEXKEYLOCK_MDP` ; presse-papiers avec effacement après délai derrière le trait `PressePapiers` (impl `arboard` en fonctionnalité `presse-papiers`, désactivée par défaut).
+- [x] Verrouillage : la CLI est sans état — chaque commande dérive la KEK, agit, puis **efface** les clés à la sortie du processus (`ZeroizeOnDrop`).
+- [x] Erreurs `anyhow` au niveau supérieur, mappant les erreurs typées **sans fuite de secret**.
 
 **Plan de test :**
-- [ ] **E2E (`assert_cmd` + `predicates`)** : init, add puis get, generate, comportement de verrouillage, export/import, change-password.
-- [ ] Vérifier qu'**aucun secret** n'apparaît sur stdout/stderr/journaux.
-- [ ] Entrées CLI négatives gérées proprement.
+- [x] **E2E (`assert_cmd` + `predicates`)** : init, unlock, add puis get, list, generate (mot de passe + phrase), export/import, change-password (via stdin), totp, audit, rm.
+- [x] **Vérifié** qu'aucun mot de passe maître n'apparaît sur stdout/stderr ; `list` ne montre aucun mot de passe d'entrée.
+- [x] Entrées négatives gérées proprement (mauvais mot de passe, entrée introuvable, `rm` par nom).
 
 **Critères d'acceptation :**
-- [ ] Scénarios E2E verts ; aucune fuite de secret dans la sortie.
-- [ ] « Définition de terminé » (§5) satisfaite.
+- [x] 7 scénarios E2E verts ; aucune fuite de secret dans la sortie.
+- [x] « Définition de terminé » (§5) satisfaite (build, test, clippy `-D warnings`, fmt, audit verts ; la fonctionnalité `presse-papiers` compile aussi).
 
 ---
 
