@@ -1,0 +1,23 @@
+[package]
+name = "nex-partage"
+description = "Partage de bout en bout : encapsulation de clé hybride X25519 + ML-KEM-768 (résistance post-quantique)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nex-cryptographie = { path = "../nex-cryptographie" }
+x25519-dalek.workspace = true
+ml-kem.workspace = true
+rand.workspace = true
+hkdf.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]

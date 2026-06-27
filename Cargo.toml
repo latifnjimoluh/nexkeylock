@@ -14,6 +14,7 @@ members = [
     "crates/nex-cryptographie",
     "crates/nex-coffre",
     "crates/nex-console",
+    "crates/nex-partage",
 ]
 # Le dossier fuzz/ utilise la toolchain nightly + libFuzzer : isolé du workspace.
 exclude = ["fuzz"]
@@ -67,6 +68,9 @@ anyhow = "1.0.93"
 clap = { version = "4.5.21", features = ["derive"] }
 rpassword = "7.3.1"
 arboard = "3.4.1"
+# Phase avancée (Jalon 6) : courbes elliptiques + post-quantique
+x25519-dalek = { version = "2.0.1", features = ["static_secrets", "zeroize"] }
+ml-kem = "0.2"
 # Outils de test
 proptest = "1.5.0"
 assert_cmd = "2.0.16"

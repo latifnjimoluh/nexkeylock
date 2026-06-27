@@ -216,14 +216,15 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 
 ---
 
-### Jalon 6 — Avancé (DIFFÉRÉ — ne pas développer tant que 0–5 ne sont pas verts)
-Structuré maintenant, pas implémenté en avance.
+### Jalon 6 — Avancé (en cours — démarré après que 0–5 sont verts)
+- [x] **Partage E2E** : encapsulation de clé **hybride X25519 + ML-KEM-768** (crate `nex-partage`, séparé du cœur audité). `generer_paire` / `encapsuler` / `decapsuler` combinés par HKDF-SHA256 ; enveloppe `partager` / `recevoir` (AEAD XChaCha20-Poly1305). 7 tests : accord de clé, aller-retour, mauvais destinataire, altération du volet **classique** comme du volet **post-quantique** (les deux contribuent à la clé).
 - [ ] Synchronisation zéro-connaissance (PAKE : OPAQUE/SRP, ou auth double dérivation).
-- [ ] Partage E2E (encapsulation de clé hybride X25519 + ML-KEM-768).
 - [ ] Fournisseur de passkeys (FIDO2/WebAuthn).
 - [ ] Interface graphique Tauri.
 - [ ] Liaisons mobiles UniFFI.
 - [ ] Clés matérielles, accès d'urgence.
+
+> Reste à faire pour le partage : sérialisation des clés/encapsulations en octets (transport/disque), intégration au modèle de coffre, et vecteurs ML-KEM FIPS 203 dédiés.
 
 ---
 
