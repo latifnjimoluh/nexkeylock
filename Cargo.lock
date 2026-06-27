@@ -910,6 +910,7 @@ dependencies = [
  "hex",
  "hmac",
  "nex-cryptographie",
+ "nex-partage",
  "proptest",
  "serde",
  "sha1",

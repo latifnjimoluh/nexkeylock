@@ -6,6 +6,7 @@
 
 use nex_cryptographie::aead::{chiffrer, dechiffrer, nonce_aleatoire_xchacha, Algorithme};
 
+use crate::codec::{ecrire_bloc, Lecteur};
 use crate::erreurs::ErreurPartage;
 use crate::hybride::{decapsuler, encapsuler, ClesPrivees, ClesPubliques, Encapsulation};
 
@@ -17,6 +18,36 @@ pub struct MessagePartage {
     pub nonce: Vec<u8>,
     /// Texte chiffré (charge utile + tag).
     pub chiffre: Vec<u8>,
+}
+
+impl MessagePartage {
+    /// Sérialise le message partagé (encapsulation + nonce + texte chiffré).
+    pub fn vers_octets(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        ecrire_bloc(&mut out, &self.encapsulation.vers_octets());
+        ecrire_bloc(&mut out, &self.nonce);
+        ecrire_bloc(&mut out, &self.chiffre);
+        out
+    }
+
+    /// Reconstruit un message partagé depuis ses octets.
+    ///
+    /// # Erreurs
+    /// [`ErreurPartage::Format`] si les octets sont malformés.
+    pub fn depuis_octets(donnees: &[u8]) -> Result<Self, ErreurPartage> {
+        let mut lecteur = Lecteur::new(donnees);
+        let encapsulation = Encapsulation::depuis_octets(lecteur.bloc()?)?;
+        let nonce = lecteur.bloc()?.to_vec();
+        let chiffre = lecteur.bloc()?.to_vec();
+        if !lecteur.est_termine() {
+            return Err(ErreurPartage::Format);
+        }
+        Ok(Self {
+            encapsulation,
+            nonce,
+            chiffre,
+        })
+    }
 }
 
 /// Chiffre `charge` à destination de `destinataire`.
@@ -97,5 +128,21 @@ mod tests {
         let ct = message.encapsulation.ct_mut();
         ct[0] ^= 0x01;
         assert!(recevoir(&prive, &message).is_err());
+    }
+
+    #[test]
+    fn serialisation_message_aller_retour() {
+        let (prive, public) = generer_paire();
+        let message = partager(&public, b"charge a transporter").unwrap();
+        let octets = message.vers_octets();
+        let message2 = MessagePartage::depuis_octets(&octets).unwrap();
+        let recu = recevoir(&prive, &message2).unwrap();
+        assert_eq!(recu, b"charge a transporter");
+    }
+
+    #[test]
+    fn message_octets_invalides_rejetes() {
+        assert!(MessagePartage::depuis_octets(b"x").is_err());
+        assert!(MessagePartage::depuis_octets(&[]).is_err());
     }
 }

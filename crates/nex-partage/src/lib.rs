@@ -10,6 +10,7 @@
 //! Ce crate est **avancé** (Jalon 6) et volontairement séparé du cœur audité
 //! afin de garder la surface cryptographique principale minimale.
 
+pub(crate) mod codec;
 pub mod erreurs;
 pub mod hybride;
 pub mod partage;

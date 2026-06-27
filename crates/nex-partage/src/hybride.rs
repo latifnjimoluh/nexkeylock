@@ -10,7 +10,7 @@
 
 use hkdf::Hkdf;
 use ml_kem::kem::{Decapsulate, Encapsulate};
-use ml_kem::{KemCore, MlKem768};
+use ml_kem::{Encoded, EncodedSizeUser, KemCore, MlKem768};
 use rand::rngs::OsRng;
 use sha2::Sha256;
 use x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret};
@@ -18,6 +18,7 @@ use zeroize::Zeroizing;
 
 use nex_cryptographie::CleSecrete;
 
+use crate::codec::{ecrire_bloc, Lecteur};
 use crate::erreurs::ErreurPartage;
 
 /// Étiquette de contexte HKDF pour la combinaison hybride.
@@ -125,6 +126,109 @@ pub fn decapsuler(
     combiner(ss_x.as_bytes(), ss_mlkem.as_slice())
 }
 
+// --- Sérialisation (transport / stockage) ---------------------------------
+
+/// Reconstruit une clé publique X25519 depuis 32 octets.
+fn lire_x_pub(octets: &[u8]) -> Result<PublicKey, ErreurPartage> {
+    let a: [u8; 32] = octets.try_into().map_err(|_| ErreurPartage::Format)?;
+    Ok(PublicKey::from(a))
+}
+
+/// Reconstruit une clé secrète X25519 depuis 32 octets.
+fn lire_x_sec(octets: &[u8]) -> Result<StaticSecret, ErreurPartage> {
+    let a: [u8; 32] = octets.try_into().map_err(|_| ErreurPartage::Format)?;
+    Ok(StaticSecret::from(a))
+}
+
+/// Reconstruit une clé d'encapsulation ML-KEM depuis ses octets.
+fn lire_ek(octets: &[u8]) -> Result<EkMlKem, ErreurPartage> {
+    let enc = Encoded::<EkMlKem>::try_from(octets).map_err(|_| ErreurPartage::Format)?;
+    Ok(EkMlKem::from_bytes(&enc))
+}
+
+/// Reconstruit une clé de décapsulation ML-KEM depuis ses octets.
+fn lire_dk(octets: &[u8]) -> Result<DkMlKem, ErreurPartage> {
+    let enc = Encoded::<DkMlKem>::try_from(octets).map_err(|_| ErreurPartage::Format)?;
+    Ok(DkMlKem::from_bytes(&enc))
+}
+
+/// Reconstruit un texte chiffré ML-KEM depuis ses octets.
+fn lire_ct(octets: &[u8]) -> Result<CtMlKem, ErreurPartage> {
+    CtMlKem::try_from(octets).map_err(|_| ErreurPartage::Format)
+}
+
+impl ClesPubliques {
+    /// Sérialise le bundle public (clé X25519 + clé d'encapsulation ML-KEM).
+    pub fn vers_octets(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        ecrire_bloc(&mut out, self.x.as_bytes());
+        ecrire_bloc(&mut out, self.mlkem.as_bytes().as_slice());
+        out
+    }
+
+    /// Reconstruit un bundle public depuis ses octets.
+    ///
+    /// # Erreurs
+    /// [`ErreurPartage::Format`] si les octets sont malformés.
+    pub fn depuis_octets(donnees: &[u8]) -> Result<Self, ErreurPartage> {
+        let mut lecteur = Lecteur::new(donnees);
+        let x = lire_x_pub(lecteur.bloc()?)?;
+        let mlkem = lire_ek(lecteur.bloc()?)?;
+        if !lecteur.est_termine() {
+            return Err(ErreurPartage::Format);
+        }
+        Ok(Self { x, mlkem })
+    }
+}
+
+impl ClesPrivees {
+    /// Sérialise les clés privées (effacées à la libération du tampon).
+    pub fn vers_octets(&self) -> Zeroizing<Vec<u8>> {
+        let mut out = Vec::new();
+        ecrire_bloc(&mut out, &self.x.to_bytes());
+        ecrire_bloc(&mut out, self.mlkem.as_bytes().as_slice());
+        Zeroizing::new(out)
+    }
+
+    /// Reconstruit les clés privées depuis leurs octets.
+    ///
+    /// # Erreurs
+    /// [`ErreurPartage::Format`] si les octets sont malformés.
+    pub fn depuis_octets(donnees: &[u8]) -> Result<Self, ErreurPartage> {
+        let mut lecteur = Lecteur::new(donnees);
+        let x = lire_x_sec(lecteur.bloc()?)?;
+        let mlkem = lire_dk(lecteur.bloc()?)?;
+        if !lecteur.est_termine() {
+            return Err(ErreurPartage::Format);
+        }
+        Ok(Self { x, mlkem })
+    }
+}
+
+impl Encapsulation {
+    /// Sérialise le matériel d'encapsulation.
+    pub fn vers_octets(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        ecrire_bloc(&mut out, self.x_eph.as_bytes());
+        ecrire_bloc(&mut out, self.mlkem_ct.as_slice());
+        out
+    }
+
+    /// Reconstruit le matériel d'encapsulation depuis ses octets.
+    ///
+    /// # Erreurs
+    /// [`ErreurPartage::Format`] si les octets sont malformés.
+    pub fn depuis_octets(donnees: &[u8]) -> Result<Self, ErreurPartage> {
+        let mut lecteur = Lecteur::new(donnees);
+        let x_eph = lire_x_pub(lecteur.bloc()?)?;
+        let mlkem_ct = lire_ct(lecteur.bloc()?)?;
+        if !lecteur.est_termine() {
+            return Err(ErreurPartage::Format);
+        }
+        Ok(Self { x_eph, mlkem_ct })
+    }
+}
+
 #[cfg(test)]
 impl Encapsulation {
     /// Accès mutable au texte chiffré ML-KEM (tests d'altération).
@@ -165,5 +269,69 @@ mod tests {
         encap.x_eph = PublicKey::from(&autre);
         let cle = decapsuler(&prive, &encap).unwrap();
         assert_ne!(cle_emetteur, cle);
+    }
+
+    #[test]
+    fn serialisation_bundle_public() {
+        let (prive, public) = generer_paire();
+        let octets = public.vers_octets();
+        let public2 = ClesPubliques::depuis_octets(&octets).unwrap();
+        // Le bundle reconstruit chiffre toujours vers le même destinataire.
+        let (encap, cle_s) = encapsuler(&public2).unwrap();
+        let cle_r = decapsuler(&prive, &encap).unwrap();
+        assert_eq!(cle_s, cle_r);
+    }
+
+    #[test]
+    fn serialisation_cles_privees() {
+        let (prive, public) = generer_paire();
+        let octets = prive.vers_octets();
+        let prive2 = ClesPrivees::depuis_octets(&octets).unwrap();
+        let (encap, cle_s) = encapsuler(&public).unwrap();
+        let cle_r = decapsuler(&prive2, &encap).unwrap();
+        assert_eq!(cle_s, cle_r);
+    }
+
+    #[test]
+    fn serialisation_encapsulation() {
+        let (prive, public) = generer_paire();
+        let (encap, cle_s) = encapsuler(&public).unwrap();
+        let octets = encap.vers_octets();
+        let encap2 = Encapsulation::depuis_octets(&octets).unwrap();
+        let cle_r = decapsuler(&prive, &encap2).unwrap();
+        assert_eq!(cle_s, cle_r);
+    }
+
+    #[test]
+    fn deserialisation_octets_invalides() {
+        assert!(matches!(
+            ClesPubliques::depuis_octets(b"trop court"),
+            Err(ErreurPartage::Format)
+        ));
+        assert!(matches!(
+            ClesPrivees::depuis_octets(&[]),
+            Err(ErreurPartage::Format)
+        ));
+        assert!(matches!(
+            Encapsulation::depuis_octets(&[0u8; 10]),
+            Err(ErreurPartage::Format)
+        ));
+    }
+
+    #[test]
+    fn ml_kem_deterministe() {
+        use rand::rngs::StdRng;
+        use rand::SeedableRng;
+
+        // Même graine de CSPRNG ⇒ même clé d'encapsulation ML-KEM (la primitive
+        // est déterministe pour un aléa donné). La conformité aux vecteurs
+        // FIPS 203 / NIST ACVP est déléguée à la crate auditée `ml-kem`.
+        let (_dk1, ek1) = MlKem768::generate(&mut StdRng::from_seed([42u8; 32]));
+        let (_dk2, ek2) = MlKem768::generate(&mut StdRng::from_seed([42u8; 32]));
+        assert_eq!(ek1.as_bytes(), ek2.as_bytes());
+
+        // Graine différente ⇒ clé différente.
+        let (_dk3, ek3) = MlKem768::generate(&mut StdRng::from_seed([99u8; 32]));
+        assert_ne!(ek1.as_bytes(), ek3.as_bytes());
     }
 }

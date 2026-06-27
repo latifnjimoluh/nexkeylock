@@ -90,6 +90,10 @@ impl core::fmt::Debug for Entree {
 pub struct ContenuCoffre {
     /// Entrées du coffre.
     pub entrees: Vec<Entree>,
+    /// Identité de partage sérialisée (clés privées hybrides), le cas échéant.
+    /// Protégée comme le reste du corps ; effacée à la libération.
+    #[serde(default)]
+    pub identite_partage: Option<Vec<u8>>,
 }
 
 impl ContenuCoffre {

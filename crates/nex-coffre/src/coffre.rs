@@ -296,6 +296,19 @@ impl CoffreDeverrouille {
         &self.contenu
     }
 
+    /// Identité de partage sérialisée stockée dans le coffre, le cas échéant
+    /// (clés privées hybrides — à désérialiser avec `nex-partage`).
+    pub fn identite_partage(&self) -> Option<&[u8]> {
+        self.contenu.identite_partage.as_deref()
+    }
+
+    /// Définit (ou remplace) l'identité de partage. Appeler [`Self::enregistrer`]
+    /// pour persister.
+    pub fn definir_identite_partage(&mut self, octets: Vec<u8>) {
+        self.contenu.identite_partage = Some(octets);
+        self.toucher();
+    }
+
     /// Ajoute une entrée au coffre (en mémoire ; appeler [`Self::enregistrer`]
     /// pour persister).
     pub fn ajouter(&mut self, entree: Entree) {

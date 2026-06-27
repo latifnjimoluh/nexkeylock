@@ -22,4 +22,8 @@ pub enum ErreurPartage {
     /// Erreur cryptographique sous-jacente (AEAD, aléa…).
     #[error("erreur cryptographique")]
     Crypto(#[from] ErreurCrypto),
+
+    /// Octets sérialisés invalides (longueur, troncature, clé malformée).
+    #[error("données de partage sérialisées invalides")]
+    Format,
 }

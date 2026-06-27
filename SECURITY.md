@@ -61,6 +61,19 @@ coffre corrompu ou malveillant ne doit jamais provoquer de plantage
 exploitable). Un passage court tourne en CI ; les campagnes longues sont
 documentées.
 
+## 6 bis. Partage chiffré de bout en bout (avancé)
+
+Le crate `nex-partage` (séparé du cœur, Jalon 6) implémente un partage E2E
+résistant au post-quantique : encapsulation de clé **hybride X25519 + ML-KEM-768
+(FIPS 203)** combinée par HKDF-SHA256, puis chiffrement de la charge par
+XChaCha20-Poly1305. Propriété hybride : sûr tant qu'**au moins un** des deux
+volets tient (vérifié par test — altérer l'un ou l'autre casse le
+déchiffrement). La conformité de ML-KEM aux vecteurs NIST ACVP est **déléguée à
+la crate auditée `ml-kem`** ; nos tests couvrent l'intégration (accord de clé,
+aller-retour, sérialisation, déterminisme). L'identité de partage (clés privées)
+est stockée chiffrée dans le corps du coffre et effacée en mémoire à la
+libération.
+
 ## 7. Préparation à un audit externe
 
 État au terme des jalons 0–5 : cœur cryptographique validé par vecteurs

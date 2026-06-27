@@ -217,14 +217,15 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 ---
 
 ### Jalon 6 — Avancé (en cours — démarré après que 0–5 sont verts)
-- [x] **Partage E2E** : encapsulation de clé **hybride X25519 + ML-KEM-768** (crate `nex-partage`, séparé du cœur audité). `generer_paire` / `encapsuler` / `decapsuler` combinés par HKDF-SHA256 ; enveloppe `partager` / `recevoir` (AEAD XChaCha20-Poly1305). 7 tests : accord de clé, aller-retour, mauvais destinataire, altération du volet **classique** comme du volet **post-quantique** (les deux contribuent à la clé).
+- [x] **Partage E2E** : encapsulation de clé **hybride X25519 + ML-KEM-768** (crate `nex-partage`, séparé du cœur audité). `generer_paire` / `encapsuler` / `decapsuler` combinés par HKDF-SHA256 ; enveloppe `partager` / `recevoir` (AEAD XChaCha20-Poly1305).
+  - [x] **Sérialisation** en octets (longueur-préfixée, fail-closed) de tout : bundle public, clés privées (`Zeroizing`), encapsulation, message — pour transport et stockage.
+  - [x] **Intégration au coffre** : champ `identite_partage` dans `ContenuCoffre` + `definir_identite_partage` / `identite_partage` ; test bout en bout (coffre stocke l'identité → réouverture → réception d'un message E2E).
+  - [x] Déterminisme ML-KEM testé (RNG ensemencé) ; conformité FIPS 203 / NIST ACVP **déléguée à la crate auditée `ml-kem`** (documenté). 14 tests `nex-partage` + 1 d'intégration.
 - [ ] Synchronisation zéro-connaissance (PAKE : OPAQUE/SRP, ou auth double dérivation).
 - [ ] Fournisseur de passkeys (FIDO2/WebAuthn).
 - [ ] Interface graphique Tauri.
 - [ ] Liaisons mobiles UniFFI.
 - [ ] Clés matérielles, accès d'urgence.
-
-> Reste à faire pour le partage : sérialisation des clés/encapsulations en octets (transport/disque), intégration au modèle de coffre, et vecteurs ML-KEM FIPS 203 dédiés.
 
 ---
 
