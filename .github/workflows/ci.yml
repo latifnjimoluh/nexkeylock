@@ -14,7 +14,7 @@ jobs:
     name: Format, Clippy et tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Installer la chaîne d'outils (depuis rust-toolchain.toml)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -31,7 +31,7 @@ jobs:
     name: Audit des dépendances
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - name: Installer cargo-audit
         run: cargo install cargo-audit --locked
@@ -42,7 +42,7 @@ jobs:
     name: Couverture (cargo-llvm-cov)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: llvm-tools-preview
@@ -57,7 +57,7 @@ jobs:
           --fail-under-lines 90
           -p nex-cryptographie -p nex-coffre
       - name: Publier le rapport lcov
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: couverture-lcov
           path: lcov.info
@@ -71,7 +71,7 @@ jobs:
     env:
       RUSTUP_TOOLCHAIN: nightly
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - name: Installer cargo-fuzz
