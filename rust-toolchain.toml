@@ -2,5 +2,8 @@
 # Le fuzzing utilise une chaîne nightly séparée, isolée dans le dossier fuzz/.
 [toolchain]
 channel = "1.95.0"
-components = ["rustfmt", "clippy"]
+# `llvm-tools-preview` est requis par `cargo-llvm-cov` (job couverture). Comme ce
+# fichier prime sur la toolchain installée par la CI, les composants doivent y
+# être déclarés pour être disponibles sur la 1.95.0 effectivement sélectionnée.
+components = ["rustfmt", "clippy", "llvm-tools-preview"]
 profile = "minimal"

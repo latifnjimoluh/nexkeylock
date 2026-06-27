@@ -50,8 +50,9 @@ jobs:
       - name: Installer cargo-llvm-cov
         run: cargo install cargo-llvm-cov --locked
       - name: Mesurer la couverture (pm-crypto et pm-core)
+        # `-p` cible les deux crates cœur ; incompatible avec `--workspace`.
         run: >-
-          cargo llvm-cov --workspace --all-features
+          cargo llvm-cov --all-features
           --lcov --output-path lcov.info
           --fail-under-lines 90
           -p nex-cryptographie -p nex-coffre
@@ -64,6 +65,11 @@ jobs:
   fuzz:
     name: Fuzz smoke (nightly)
     runs-on: ubuntu-latest
+    # `rust-toolchain.toml` épingle la stable 1.95.0 ; cargo-fuzz exige la
+    # nightly (`-Z sanitizer`). `RUSTUP_TOOLCHAIN` prime sur le fichier et force
+    # la nightly pour toutes les invocations de cargo de ce job.
+    env:
+      RUSTUP_TOOLCHAIN: nightly
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
