@@ -33,6 +33,26 @@
 - **Temps constant** — vérifier l'usage de `subtle` ; interdire `==` sur les secrets.
 - **Hygiène mémoire** — vérifier `Zeroize`/`Drop` là où c'est faisable.
 
+## Fuzzing (cargo-fuzz, toolchain nightly)
+
+Les cibles vivent dans `fuzz/` (crate isolé du workspace). Cibles :
+`decoder_fichier` (parseur de format), `ouvrir_fichier` (décodage + validation +
+ré-encodage), `aead_dechiffrer` (routine de déchiffrement AEAD).
+
+```sh
+cargo install cargo-fuzz --locked
+rustup toolchain install nightly   # requis par libFuzzer
+
+# Passage court (smoke), comme en CI :
+cargo +nightly fuzz run decoder_fichier -- -max_total_time=20
+
+# Campagne longue (ex. 10 minutes) :
+cargo +nightly fuzz run aead_dechiffrer -- -max_total_time=600
+```
+
+Objectif : aucun `panic`, aucun comportement indéfini sur entrée arbitraire.
+Sur cette machine Windows sans `rustup`, le fuzzing est exécuté par la CI Linux.
+
 ## Sous Windows (PowerShell)
 
 Si `cargo` n'est pas dans le PATH de la session, préfixer :

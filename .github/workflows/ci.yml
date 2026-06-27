@@ -61,5 +61,17 @@ jobs:
           name: couverture-lcov
           path: lcov.info
 
-  # Le fuzz smoke (cargo-fuzz) sera activé au Jalon 1/7 quand les cibles
-  # existeront (désérialiseur d'en-tête, parseur de format, routine AEAD).
+  fuzz:
+    name: Fuzz smoke (nightly)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: Installer cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Passage de fuzz court sur chaque cible
+        run: |
+          for cible in decoder_fichier ouvrir_fichier aead_dechiffrer; do
+            cargo fuzz run "$cible" -- -max_total_time=20 -runs=50000
+          done

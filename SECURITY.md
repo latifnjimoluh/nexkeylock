@@ -50,6 +50,28 @@ nexkeylock est un gestionnaire de mots de passe **zéro-connaissance** : seul l'
 - **Aucun export en clair par défaut.** L'export par défaut copie le blob déjà chiffré. L'export en clair exige `--je-confirme-le-risque` et émet un avertissement.
 - **Code de récupération.** La DEK est emballée une seconde fois par une clé dérivée (Argon2id) d'un code aléatoire à haute entropie (160 bits). L'AAD de cet emballage est `aad_corps` (version+algorithme), stable lors d'un changement de mot de passe : le code de récupération reste donc valide après rotation du mot de passe maître. Le code n'est affiché qu'une seule fois ; sans lui ni le mot de passe maître, le coffre est irrécupérable (propriété du zéro-connaissance).
 
-## 6. Signalement de vulnérabilité
+## 6. Surface de fuzzing
 
-Projet en développement (pré-audit). Avant tout usage réel : vecteurs de test verts, comparaisons à temps constant, effacement mémoire, gestion correcte des nonces, et **audit cryptographique indépendant**.
+Les surfaces exposées à des données non fiables sont soumises au fuzzing
+(`cargo-fuzz`, cf. `TESTING.md`) : le **parseur de format de coffre**
+(`decoder_fichier`), le couple **décodage + validation d'en-tête**
+(`ouvrir_fichier`) et la **routine de déchiffrement AEAD** (`aead_dechiffrer`).
+Objectif : aucun `panic` ni comportement indéfini sur entrée arbitraire (un
+coffre corrompu ou malveillant ne doit jamais provoquer de plantage
+exploitable). Un passage court tourne en CI ; les campagnes longues sont
+documentées.
+
+## 7. Préparation à un audit externe
+
+État au terme des jalons 0–5 : cœur cryptographique validé par vecteurs
+officiels (RFC 9106, 8439, 5869, 6238, NIST AES-GCM), tests de propriétés,
+cycle de vie et cas adversariaux du coffre, e2e de la CLI, fuzzing des surfaces
+non fiables. Avant tout usage réel : **audit cryptographique indépendant**, plus
+une revue des points hors périmètre (§2) et des limites d'effacement mémoire
+(§4).
+
+## 8. Signalement de vulnérabilité
+
+Projet en développement (pré-audit). Ne pas utiliser pour de vrais secrets avant
+audit. Vérifications minimales avant déploiement : vecteurs de test verts,
+comparaisons à temps constant, effacement mémoire, gestion correcte des nonces.

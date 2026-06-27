@@ -229,10 +229,12 @@ Structuré maintenant, pas implémenté en avance.
 
 ### Jalon 7 — Durcissement et préparation d'audit
 **Objectif :** porter le niveau d'assurance à « prêt pour audit ».
-- [ ] Étendre le fuzzing : désérialiseur d'en-tête, parseur de format de coffre, routine de déchiffrement AEAD. Cibles propres (aucun panic/UB) sur passage court ; instructions de campagne longue documentées.
-- [ ] Atteindre les objectifs de couverture ; rapport publié en CI.
-- [ ] CI complète : fmt + clippy + test + fuzz smoke + couverture + audit.
-- [ ] Finaliser `SECURITY.md` ; écrire `TESTING.md` complet ; notes de préparation d'audit externe.
+- [x] Cibles de fuzzing écrites (`fuzz/`, crate isolé) : `decoder_fichier` (parseur de format), `ouvrir_fichier` (décodage + validation + ré-encodage), `aead_dechiffrer` (routine AEAD). Instructions de campagne longue dans `TESTING.md`. *(Exécution : CI Linux nightly — non lançable sur cette machine Windows sans rustup.)*
+- [~] Objectifs de couverture (≥ 90 % `nex-cryptographie`/`nex-coffre`) : rapport publié en CI (`cargo-llvm-cov --fail-under-lines 90`).
+- [x] CI complète : fmt + clippy + test + **fuzz smoke** + couverture + audit.
+- [x] `SECURITY.md` enrichi (surface de fuzzing, préparation d'audit) ; `TESTING.md` complet (catégories + fuzzing) ; notes de préparation d'audit externe.
+
+> Note : les éléments marqués `[~]` dépendent d'une exécution CI (Linux/nightly) que la machine de développement Windows actuelle ne peut pas réaliser localement (pas de proxy `rustup`, pas de composant `llvm-tools-preview` ni de toolchain nightly).
 
 ---
 

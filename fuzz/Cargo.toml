@@ -1,0 +1,42 @@
+# Cibles de fuzzing (cargo-fuzz). Crate isolé du workspace : toolchain nightly
+# + libFuzzer requis. Lancer : `cargo +nightly fuzz run <cible>`.
+[package]
+name = "nexkeylock-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+nex-coffre = { path = "../crates/nex-coffre" }
+nex-cryptographie = { path = "../crates/nex-cryptographie" }
+
+[profile.release]
+debug = 1
+
+# Désactive les avertissements de code non utilisé pour les cibles minimales.
+[workspace]
+
+[[bin]]
+name = "decoder_fichier"
+path = "fuzz_targets/decoder_fichier.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ouvrir_fichier"
+path = "fuzz_targets/ouvrir_fichier.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aead_dechiffrer"
+path = "fuzz_targets/aead_dechiffrer.rs"
+test = false
+doc = false
+bench = false
