@@ -201,18 +201,18 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 ### Jalon 5 — Sauvegarde et récupération
 **Objectif :** retrouver l'accès sans casser le zéro-connaissance.
 **Livrables de code :**
-- [ ] Code de récupération : DEK emballée à la fois par la KEK **et** par une clé dérivée du code.
-- [ ] Export/import chiffrés (jamais en clair par défaut ; opt-in explicite + avertissement si proposé).
-- [ ] Flux de restauration.
+- [x] Code de récupération : DEK emballée à la fois par la KEK **et** par une clé dérivée du code (bloc `BlocRecuperation`, AAD = `aad_corps` stable) — `activer_recuperation` / `deverrouiller_par_recuperation`.
+- [x] Export chiffré par défaut (copie du blob) ; export **en clair** derrière `--je-confirme-le-risque` + avertissement ; import avec validation du format.
+- [x] Flux de restauration CLI : `recovery-setup` (affiche le code une fois), `recovery-reset` (restaure via le code et fixe un nouveau mot de passe maître).
 
 **Plan de test :**
-- [ ] Les deux voies de déballage testées (mot de passe maître ET code de récupération).
-- [ ] Aller-retour d'export chiffré ; export en clair derrière confirmation explicite.
-- [ ] Sauvegarde corrompue ⇒ échec sûr.
+- [x] Les **deux voies** de déballage testées (mot de passe maître ET code de récupération).
+- [x] Le code de récupération survit à un changement de mot de passe ; mauvais code rejeté ; absence de récupération signalée.
+- [x] Bloc de récupération corrompu ⇒ échec sûr **sans** affecter la voie mot de passe ; export en clair refusé sans confirmation ; export chiffré porte la magie du format.
 
 **Critères d'acceptation :**
-- [ ] Les deux voies de déballage vérifiées ; sauvegardes toujours chiffrées par défaut.
-- [ ] « Définition de terminé » (§5) satisfaite.
+- [x] Les deux voies de déballage vérifiées ; export chiffré par défaut.
+- [x] « Définition de terminé » (§5) satisfaite (build, test, clippy `-D warnings`, fmt, audit verts).
 
 ---
 

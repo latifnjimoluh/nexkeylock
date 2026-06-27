@@ -24,7 +24,7 @@ use zeroize::Zeroizing;
 
 use crate::entete::EnteteAuth;
 use crate::erreurs::ErreurCoffre;
-use crate::format::FichierCoffre;
+use crate::format::{BlocRecuperation, FichierCoffre};
 use crate::modele::{ContenuCoffre, Entree};
 
 /// Longueur du sel KDF, en octets.
@@ -108,6 +108,64 @@ impl CoffreVerrouille {
             dek_emballee: self.fichier.dek_emballee,
             dek,
             contenu,
+            recuperation: self.fichier.recuperation,
+            derniere_activite: Instant::now(),
+        })
+    }
+
+    /// Déverrouille le coffre à l'aide du **code de récupération** (seconde voie
+    /// de déballage de la DEK), si un bloc de récupération est présent.
+    ///
+    /// # Erreurs
+    /// - [`ErreurCoffre::RecuperationAbsente`] si aucun code n'est configuré ;
+    /// - [`ErreurCoffre::MotDePasseInvalide`] si le code est incorrect ;
+    /// - [`ErreurCoffre::Corrompu`] si le corps est altéré.
+    pub fn deverrouiller_par_recuperation(
+        self,
+        code: &str,
+    ) -> Result<CoffreDeverrouille, ErreurCoffre> {
+        let algo = self.fichier.entete.valider()?;
+        if self.fichier.recuperation.is_empty() {
+            return Err(ErreurCoffre::RecuperationAbsente);
+        }
+        let bloc: BlocRecuperation = ciborium::from_reader(self.fichier.recuperation.as_slice())
+            .map_err(|_| ErreurCoffre::FormatInvalide)?;
+
+        let canonique = canonicaliser_code(code);
+        let parametres = ParametresArgon2::new(bloc.kdf_m_kio, bloc.kdf_t, bloc.kdf_p);
+        let cle_rec = deriver_cle(canonique.as_bytes(), &bloc.sel, parametres)?;
+
+        // L'emballage de récupération est authentifié par aad_corps (stable au
+        // changement de mot de passe).
+        let aad_corps = self.fichier.entete.aad_corps();
+        let dek_clair = Zeroizing::new(
+            aead::dechiffrer(algo, &cle_rec, &bloc.nonce, &bloc.dek_emballee, &aad_corps)
+                .map_err(|_| ErreurCoffre::MotDePasseInvalide)?,
+        );
+        let dek = CleSecrete::depuis_tranche(&dek_clair)?;
+
+        let clair = Zeroizing::new(
+            aead::dechiffrer(
+                algo,
+                &dek,
+                &self.fichier.nonce_corps,
+                &self.fichier.corps,
+                &aad_corps,
+            )
+            .map_err(|_| ErreurCoffre::Corrompu)?,
+        );
+        let contenu: ContenuCoffre =
+            ciborium::from_reader(clair.as_slice()).map_err(|_| ErreurCoffre::Serialisation)?;
+
+        Ok(CoffreDeverrouille {
+            chemin: self.chemin,
+            entete: self.fichier.entete,
+            entete_brut: self.fichier.entete_brut,
+            nonce_dek: self.fichier.nonce_dek,
+            dek_emballee: self.fichier.dek_emballee,
+            dek,
+            contenu,
+            recuperation: self.fichier.recuperation,
             derniere_activite: Instant::now(),
         })
     }
@@ -122,6 +180,8 @@ pub struct CoffreDeverrouille {
     dek_emballee: Vec<u8>,
     dek: CleSecrete,
     contenu: ContenuCoffre,
+    /// Bloc de récupération sérialisé (vide = aucune récupération).
+    recuperation: Vec<u8>,
     derniere_activite: Instant,
 }
 
@@ -154,11 +214,54 @@ impl CoffreDeverrouille {
             dek_emballee,
             dek,
             contenu: ContenuCoffre::default(),
+            recuperation: Vec::new(),
             derniere_activite: Instant::now(),
         };
         let octets = coffre.vers_octets()?;
         ecrire_atomique(&coffre.chemin, &octets)?;
         Ok(coffre)
+    }
+
+    /// Active (ou remplace) un **code de récupération** : la DEK est emballée
+    /// une seconde fois par une clé dérivée d'un code aléatoire à haute
+    /// entropie. Renvoie le code (à conserver hors ligne ; affiché une seule
+    /// fois). Le coffre est réécrit.
+    ///
+    /// # Erreurs
+    /// [`ErreurCoffre::Io`], [`ErreurCoffre::Crypto`] ou [`ErreurCoffre::Serialisation`].
+    pub fn activer_recuperation(
+        &mut self,
+        parametres: ParametresArgon2,
+    ) -> Result<Zeroizing<String>, ErreurCoffre> {
+        let algo = self.entete.valider()?;
+        let code = nouveau_code_recuperation()?;
+        let canonique = canonicaliser_code(&code);
+
+        let sel = octets_aleatoires::<LONGUEUR_SEL>()?.to_vec();
+        let cle_rec = deriver_cle(canonique.as_bytes(), &sel, parametres)?;
+        let nonce = nonce_neuf(algo)?;
+        let aad_corps = self.entete.aad_corps();
+        let dek_emballee = aead::chiffrer(algo, &cle_rec, &nonce, self.dek.exposer(), &aad_corps)?;
+
+        let bloc = BlocRecuperation {
+            sel,
+            kdf_m_kio: parametres.memoire_kio,
+            kdf_t: parametres.iterations,
+            kdf_p: parametres.parallelisme,
+            nonce,
+            dek_emballee,
+        };
+        let mut octets = Vec::new();
+        ciborium::into_writer(&bloc, &mut octets).map_err(|_| ErreurCoffre::Serialisation)?;
+        self.recuperation = octets;
+
+        self.enregistrer()?;
+        Ok(code)
+    }
+
+    /// Indique si un code de récupération est configuré.
+    pub fn a_recuperation(&self) -> bool {
+        !self.recuperation.is_empty()
     }
 
     /// Entrées du coffre (lecture seule).
@@ -304,6 +407,7 @@ impl CoffreDeverrouille {
             dek_emballee: self.dek_emballee.clone(),
             nonce_corps,
             corps,
+            recuperation: self.recuperation.clone(),
         };
         Ok(fichier.encoder())
     }
@@ -369,6 +473,31 @@ fn hex_minuscule(octets: &[u8]) -> String {
     s
 }
 
+/// Génère un code de récupération aléatoire (160 bits), groupé par blocs de 5
+/// caractères pour la lisibilité (p. ex. `a1b2c-3d4e5-…`).
+///
+/// # Erreurs
+/// [`ErreurCoffre::Crypto`] si la source d'aléa est indisponible.
+pub fn nouveau_code_recuperation() -> Result<Zeroizing<String>, ErreurCoffre> {
+    let octets = octets_aleatoires::<20>()?;
+    let hex = hex_minuscule(&octets);
+    let groupes: Vec<String> = hex
+        .as_bytes()
+        .chunks(5)
+        .map(|bloc| String::from_utf8_lossy(bloc).into_owned())
+        .collect();
+    Ok(Zeroizing::new(groupes.join("-")))
+}
+
+/// Canonicalise un code de récupération : caractères alphanumériques en
+/// minuscules, sans séparateurs ni espaces (pour une dérivation stable).
+fn canonicaliser_code(code: &str) -> String {
+    code.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -386,5 +515,21 @@ mod tests {
             nonce_neuf(Algorithme::Aes256Gcm),
             Err(ErreurCoffre::AlgorithmeNonSupporte)
         ));
+    }
+
+    #[test]
+    fn code_recuperation_format() {
+        let code = nouveau_code_recuperation().unwrap();
+        // 40 hex en 8 groupes de 5, séparés par 7 tirets => 47 caractères.
+        assert_eq!(code.len(), 47);
+        assert_eq!(code.matches('-').count(), 7);
+        let canon = canonicaliser_code(&code);
+        assert_eq!(canon.len(), 40);
+        assert!(canon.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn canonicalisation_ignore_casse_et_separateurs() {
+        assert_eq!(canonicaliser_code("AB-cd EF-12"), "abcdef12");
     }
 }

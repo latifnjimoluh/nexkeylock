@@ -25,6 +25,7 @@ clap.workspace = true
 anyhow.workspace = true
 zeroize.workspace = true
 rpassword.workspace = true
+ciborium.workspace = true
 arboard = { workspace = true, optional = true }
 
 [dev-dependencies]

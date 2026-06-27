@@ -853,6 +853,7 @@ dependencies = [
  "anyhow",
  "arboard",
  "assert_cmd",
+ "ciborium",
  "clap",
  "nex-coffre",
  "predicates",

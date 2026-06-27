@@ -104,14 +104,17 @@ fn mauvais_mot_de_passe_rejete_sans_fuite() {
 
 #[test]
 fn corps_corrompu_echoue_proprement() {
+    use nex_coffre::format::FichierCoffre;
+
     let (_dir, chemin) = coffre_temp();
     CoffreDeverrouille::creer(&chemin, b"mdp", params()).unwrap();
 
-    // Altère le dernier octet (tag du corps).
-    let mut donnees = std::fs::read(&chemin).unwrap();
-    let dernier = donnees.len() - 1;
-    donnees[dernier] ^= 0xFF;
-    std::fs::write(&chemin, &donnees).unwrap();
+    // Altère précisément le tag du corps.
+    let donnees = std::fs::read(&chemin).unwrap();
+    let mut fichier = FichierCoffre::decoder(&donnees).unwrap();
+    let dernier = fichier.corps.len() - 1;
+    fichier.corps[dernier] ^= 0xFF;
+    std::fs::write(&chemin, fichier.encoder()).unwrap();
 
     let erreur = CoffreVerrouille::ouvrir(&chemin)
         .unwrap()

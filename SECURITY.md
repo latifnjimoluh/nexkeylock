@@ -47,7 +47,8 @@ nexkeylock est un gestionnaire de mots de passe **zéro-connaissance** : seul l'
 - **AEAD par défaut = XChaCha20-Poly1305.** AES-256-GCM reste opt-in tant que la persistance du compteur de nonce n'est pas prouvée résistante aux crashs (un nonce réutilisé en GCM est catastrophique).
 - **Stockage MVP = fichier unique chiffré.** SQLite/SQLCipher différé.
 - **k-anonymat hors-ligne par défaut.** Le client réseau est abstrait derrière un trait ; aucun appel réseau en test ; opt-in explicite pour l'utilisateur.
-- **Aucun export en clair par défaut.** Si proposé, derrière confirmation explicite et avertissement.
+- **Aucun export en clair par défaut.** L'export par défaut copie le blob déjà chiffré. L'export en clair exige `--je-confirme-le-risque` et émet un avertissement.
+- **Code de récupération.** La DEK est emballée une seconde fois par une clé dérivée (Argon2id) d'un code aléatoire à haute entropie (160 bits). L'AAD de cet emballage est `aad_corps` (version+algorithme), stable lors d'un changement de mot de passe : le code de récupération reste donc valide après rotation du mot de passe maître. Le code n'est affiché qu'une seule fois ; sans lui ni le mot de passe maître, le coffre est irrécupérable (propriété du zéro-connaissance).
 
 ## 6. Signalement de vulnérabilité
 

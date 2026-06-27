@@ -212,6 +212,100 @@ fn totp_et_audit() {
 }
 
 #[test]
+fn recuperation_setup_et_reset() {
+    let dir = tempfile::tempdir().unwrap();
+    let coffre = dir.path().join("c.vault");
+    cmd(&coffre, "ancien-maitre").arg("init").assert().success();
+    cmd(&coffre, "ancien-maitre")
+        .args(["add", "Test", "--generer"])
+        .assert()
+        .success();
+
+    // `recovery-setup` affiche le code une seule fois.
+    let sortie = cmd(&coffre, "ancien-maitre")
+        .arg("recovery-setup")
+        .output()
+        .unwrap();
+    assert!(sortie.status.success());
+    let texte = String::from_utf8_lossy(&sortie.stdout);
+    let code = texte
+        .lines()
+        .map(str::trim)
+        .find(|l| l.len() == 47 && l.chars().all(|c| c.is_ascii_hexdigit() || c == '-'))
+        .expect("code de récupération introuvable dans la sortie")
+        .to_string();
+
+    // `recovery-reset` : restaure l'accès et fixe un nouveau mot de passe.
+    Command::cargo_bin("nexkeylock")
+        .unwrap()
+        .env("NEXKEYLOCK_KDF_RAPIDE", "1")
+        .env("NEXKEYLOCK_CODE", &code)
+        .env("NEXKEYLOCK_MDP", "nouveau-maitre")
+        .arg("--coffre")
+        .arg(&coffre)
+        .arg("recovery-reset")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("restauré"));
+
+    // Le nouveau mot de passe fonctionne, le contenu est préservé…
+    cmd(&coffre, "nouveau-maitre")
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Test"));
+    // …et l'ancien est rejeté.
+    cmd(&coffre, "ancien-maitre")
+        .arg("unlock")
+        .assert()
+        .failure();
+}
+
+#[test]
+fn export_en_clair_protege_par_confirmation() {
+    let dir = tempfile::tempdir().unwrap();
+    let coffre = dir.path().join("c.vault");
+    cmd(&coffre, MDP).arg("init").assert().success();
+    cmd(&coffre, MDP)
+        .args(["add", "Compte", "--generer"])
+        .assert()
+        .success();
+
+    let clair = dir.path().join("clair.bin");
+    // Refusé sans confirmation explicite.
+    cmd(&coffre, MDP)
+        .arg("export")
+        .arg(&clair)
+        .arg("--en-clair")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("je-confirme-le-risque"));
+    assert!(!clair.exists());
+
+    // Accepté avec confirmation explicite.
+    cmd(&coffre, MDP)
+        .arg("export")
+        .arg(&clair)
+        .arg("--en-clair")
+        .arg("--je-confirme-le-risque")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("EN CLAIR"));
+    assert!(clair.exists());
+
+    // Export chiffré par défaut : le fichier porte la magie du format.
+    let chiffre = dir.path().join("chiffre.vault");
+    cmd(&coffre, MDP)
+        .arg("export")
+        .arg(&chiffre)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("chiffré"));
+    let octets = std::fs::read(&chiffre).unwrap();
+    assert_eq!(&octets[..8], b"NEXKLCK1");
+}
+
+#[test]
 fn rm_supprime_l_entree() {
     let dir = tempfile::tempdir().unwrap();
     let coffre = dir.path().join("c.vault");

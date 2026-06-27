@@ -28,7 +28,9 @@ use nex_coffre::{
     ParametresArgon2,
 };
 
-use crate::saisie::{lire_mot_de_passe, lire_nouveau_mot_de_passe, lire_secret_entree};
+use crate::saisie::{
+    lire_code_recuperation, lire_mot_de_passe, lire_nouveau_mot_de_passe, lire_secret_entree,
+};
 
 /// Délai d'effacement du presse-papiers, en secondes.
 const DELAI_PRESSE_PAPIERS: u64 = 15;
@@ -81,10 +83,16 @@ enum Commande {
         /// Identifiant de l'entrée.
         id: String,
     },
-    /// Exporte le coffre chiffré vers un fichier.
+    /// Exporte le coffre vers un fichier (chiffré par défaut).
     Export {
         /// Fichier de destination.
         fichier: PathBuf,
+        /// Exporter le contenu EN CLAIR (non chiffré) pour migration.
+        #[arg(long)]
+        en_clair: bool,
+        /// Confirmation explicite requise pour un export en clair.
+        #[arg(long = "je-confirme-le-risque")]
+        confirme: bool,
     },
     /// Importe un coffre chiffré depuis un fichier.
     Import {
@@ -96,6 +104,11 @@ enum Commande {
     },
     /// Change le mot de passe maître (réemballe la DEK).
     ChangePassword,
+    /// Configure un code de récupération (affiché une seule fois).
+    RecoverySetup,
+    /// Restaure l'accès via le code de récupération et définit un nouveau mot
+    /// de passe maître.
+    RecoveryReset,
 }
 
 #[derive(Args)]
@@ -181,9 +194,15 @@ fn executer(cli: Cli) -> Result<()> {
         Commande::Generate(args) => cmd_generate(args),
         Commande::Audit => cmd_audit(&chemin),
         Commande::Totp { id } => cmd_totp(&chemin, &id),
-        Commande::Export { fichier } => cmd_export(&chemin, &fichier),
+        Commande::Export {
+            fichier,
+            en_clair,
+            confirme,
+        } => cmd_export(&chemin, &fichier, en_clair, confirme),
         Commande::Import { fichier, force } => cmd_import(&chemin, &fichier, force),
         Commande::ChangePassword => cmd_change_password(&chemin),
+        Commande::RecoverySetup => cmd_recovery_setup(&chemin),
+        Commande::RecoveryReset => cmd_recovery_reset(&chemin),
     }
 }
 
@@ -405,11 +424,27 @@ fn cmd_totp(chemin: &Path, id: &str) -> Result<()> {
     Ok(())
 }
 
-fn cmd_export(chemin: &Path, fichier: &Path) -> Result<()> {
-    // Valide que le coffre est lisible avant d'exporter le blob chiffré.
-    CoffreVerrouille::ouvrir(chemin)?;
-    std::fs::copy(chemin, fichier)?;
-    println!("Coffre (chiffré) exporté vers {}", fichier.display());
+fn cmd_export(chemin: &Path, fichier: &Path, en_clair: bool, confirme: bool) -> Result<()> {
+    if en_clair {
+        if !confirme {
+            bail!(
+                "export en clair refusé : ajoutez --je-confirme-le-risque \
+                 (le fichier ne sera PAS chiffré)"
+            );
+        }
+        let coffre = ouvrir_deverrouille(chemin)?;
+        let mut octets = Zeroizing::new(Vec::new());
+        ciborium::into_writer(coffre.contenu(), &mut *octets)
+            .map_err(|_| anyhow!("échec de la sérialisation du contenu"))?;
+        std::fs::write(fichier, octets.as_slice())?;
+        eprintln!("ATTENTION : export EN CLAIR (non chiffré). Détruisez ce fichier après usage.");
+        println!("Contenu exporté en clair vers {}", fichier.display());
+    } else {
+        // Le blob est déjà chiffré : on valide puis on copie.
+        CoffreVerrouille::ouvrir(chemin)?;
+        std::fs::copy(chemin, fichier)?;
+        println!("Coffre (chiffré) exporté vers {}", fichier.display());
+    }
     Ok(())
 }
 
@@ -433,6 +468,26 @@ fn cmd_change_password(chemin: &Path) -> Result<()> {
     let nouveau = lire_nouveau_mot_de_passe()?;
     coffre.changer_mot_de_passe(nouveau.as_bytes())?;
     println!("Mot de passe maître changé.");
+    Ok(())
+}
+
+fn cmd_recovery_setup(chemin: &Path) -> Result<()> {
+    let mut coffre = ouvrir_deverrouille(chemin)?;
+    let code = coffre.activer_recuperation(parametres_kdf())?;
+    println!("Code de récupération (à conserver hors ligne, affiché une seule fois) :");
+    println!("  {}", code.as_str());
+    println!("Sans ce code NI votre mot de passe maître, le coffre est irrécupérable.");
+    Ok(())
+}
+
+fn cmd_recovery_reset(chemin: &Path) -> Result<()> {
+    let verrou = CoffreVerrouille::ouvrir(chemin)
+        .with_context(|| format!("ouverture du coffre « {} »", chemin.display()))?;
+    let code = lire_code_recuperation()?;
+    let mut coffre = verrou.deverrouiller_par_recuperation(&code)?;
+    let nouveau = lire_nouveau_mot_de_passe()?;
+    coffre.changer_mot_de_passe(nouveau.as_bytes())?;
+    println!("Accès restauré et nouveau mot de passe maître défini.");
     Ok(())
 }
 

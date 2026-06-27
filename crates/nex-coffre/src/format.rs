@@ -19,11 +19,31 @@
 //! pour les réutiliser tels quels comme données associées de l'AEAD, évitant
 //! toute divergence de re-sérialisation.
 
+use serde::{Deserialize, Serialize};
+
 use crate::entete::EnteteAuth;
 use crate::erreurs::ErreurCoffre;
 
 /// Octets magiques en tête de fichier (8 octets).
 pub const MAGIE: &[u8; 8] = b"NEXKLCK1";
+
+/// Bloc de récupération : second emballage de la DEK, par une clé dérivée du
+/// code de récupération (voir Jalon 5). Sérialisé en CBOR dans le fichier.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlocRecuperation {
+    /// Sel du KDF appliqué au code de récupération.
+    pub sel: Vec<u8>,
+    /// Mémoire Argon2id (Kio).
+    pub kdf_m_kio: u32,
+    /// Itérations Argon2id.
+    pub kdf_t: u32,
+    /// Parallelisme Argon2id.
+    pub kdf_p: u32,
+    /// Nonce d'emballage de la DEK par la clé de récupération.
+    pub nonce: Vec<u8>,
+    /// DEK emballée par la clé de récupération.
+    pub dek_emballee: Vec<u8>,
+}
 
 /// Représentation en mémoire d'un fichier de coffre.
 #[derive(Debug, Clone)]
@@ -40,6 +60,8 @@ pub struct FichierCoffre {
     pub nonce_corps: Vec<u8>,
     /// Corps chiffré (contenu du coffre).
     pub corps: Vec<u8>,
+    /// Bloc de récupération sérialisé en CBOR (vide = aucune récupération).
+    pub recuperation: Vec<u8>,
 }
 
 impl FichierCoffre {
@@ -60,6 +82,7 @@ impl FichierCoffre {
         ecrire_bloc(&mut out, &self.dek_emballee);
         ecrire_bloc(&mut out, &self.nonce_corps);
         ecrire_bloc(&mut out, &self.corps);
+        ecrire_bloc(&mut out, &self.recuperation);
         out
     }
 
@@ -82,6 +105,7 @@ impl FichierCoffre {
         let dek_emballee = lecteur.lire_bloc()?;
         let nonce_corps = lecteur.lire_bloc()?;
         let corps = lecteur.lire_bloc()?;
+        let recuperation = lecteur.lire_bloc()?;
 
         // Aucun octet résiduel n'est toléré (rejet des fichiers tronqués/garnis).
         if !lecteur.est_termine() {
@@ -98,6 +122,7 @@ impl FichierCoffre {
             dek_emballee,
             nonce_corps,
             corps,
+            recuperation,
         })
     }
 }
@@ -176,6 +201,7 @@ mod tests {
             dek_emballee: vec![0x02; 48],
             nonce_corps: vec![0x03; 24],
             corps: vec![0x04; 100],
+            recuperation: vec![0x05; 60],
         }
     }
 
@@ -190,6 +216,7 @@ mod tests {
         assert_eq!(decode.dek_emballee, f.dek_emballee);
         assert_eq!(decode.nonce_corps, f.nonce_corps);
         assert_eq!(decode.corps, f.corps);
+        assert_eq!(decode.recuperation, f.recuperation);
     }
 
     #[test]

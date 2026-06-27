@@ -54,6 +54,20 @@ pub fn lire_secret_entree(invite: &str) -> Result<Zeroizing<String>> {
     lire_ligne_stdin()
 }
 
+/// Lit le code de récupération (variable `NEXKEYLOCK_CODE`, terminal masqué, ou
+/// stdin).
+pub fn lire_code_recuperation() -> Result<Zeroizing<String>> {
+    if let Ok(valeur) = std::env::var("NEXKEYLOCK_CODE") {
+        return Ok(Zeroizing::new(valeur));
+    }
+    if std::io::stdin().is_terminal() {
+        return Ok(Zeroizing::new(rpassword::prompt_password(
+            "Code de récupération : ",
+        )?));
+    }
+    lire_ligne_stdin()
+}
+
 /// Lit une ligne sur l'entrée standard (sans le saut de ligne final).
 fn lire_ligne_stdin() -> Result<Zeroizing<String>> {
     let mut ligne = String::new();

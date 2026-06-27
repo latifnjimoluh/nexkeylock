@@ -66,4 +66,8 @@ pub enum ErreurCoffre {
     /// Échec de la consultation du service de fuites (k-anonymat).
     #[error("échec de la consultation du service de fuites")]
     Fuites,
+
+    /// Aucun code de récupération n'est configuré pour ce coffre.
+    #[error("aucun code de récupération n'est configuré")]
+    RecuperationAbsente,
 }
