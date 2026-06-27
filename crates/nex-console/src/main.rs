@@ -8,6 +8,7 @@
 //! Le chemin du coffre : option `--coffre`, variable `NEXKEYLOCK_COFFRE`, ou
 //! `~/.nexkeylock/coffre.vault` par défaut.
 
+mod avance;
 mod presse_papiers;
 mod saisie;
 
@@ -28,6 +29,7 @@ use nex_coffre::{
     ParametresArgon2,
 };
 
+use crate::avance::{CommandeEmergency, CommandePasskey, CommandeShare};
 use crate::saisie::{
     lire_code_recuperation, lire_mot_de_passe, lire_nouveau_mot_de_passe, lire_secret_entree,
 };
@@ -109,6 +111,21 @@ enum Commande {
     /// Restaure l'accès via le code de récupération et définit un nouveau mot
     /// de passe maître.
     RecoveryReset,
+    /// Partage chiffré de bout en bout (hybride post-quantique).
+    Share {
+        #[command(subcommand)]
+        commande: CommandeShare,
+    },
+    /// Accès d'urgence pour un contact de confiance.
+    Emergency {
+        #[command(subcommand)]
+        commande: CommandeEmergency,
+    },
+    /// Passkeys (WebAuthn).
+    Passkey {
+        #[command(subcommand)]
+        commande: CommandePasskey,
+    },
 }
 
 #[derive(Args)]
@@ -203,6 +220,9 @@ fn executer(cli: Cli) -> Result<()> {
         Commande::ChangePassword => cmd_change_password(&chemin),
         Commande::RecoverySetup => cmd_recovery_setup(&chemin),
         Commande::RecoveryReset => cmd_recovery_reset(&chemin),
+        Commande::Share { commande } => avance::executer_share(&chemin, commande),
+        Commande::Emergency { commande } => avance::executer_emergency(&chemin, commande),
+        Commande::Passkey { commande } => avance::executer_passkey(&chemin, commande),
     }
 }
 

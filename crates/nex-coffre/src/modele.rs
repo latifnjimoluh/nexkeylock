@@ -94,6 +94,9 @@ pub struct ContenuCoffre {
     /// Protégée comme le reste du corps ; effacée à la libération.
     #[serde(default)]
     pub identite_partage: Option<Vec<u8>>,
+    /// Passkeys (WebAuthn) sérialisées, clés privées incluses, le cas échéant.
+    #[serde(default)]
+    pub passkeys: Vec<Vec<u8>>,
 }
 
 impl ContenuCoffre {

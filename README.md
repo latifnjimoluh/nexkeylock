@@ -62,6 +62,23 @@ Le mot de passe maître se saisit de façon masquée, ou via la variable
 `NEXKEYLOCK_MDP` (automatisation). Compiler avec `--features presse-papiers`
 pour activer la copie presse-papiers (`get --copier`).
 
+### Fonctionnalités avancées (Jalon 6)
+
+```sh
+# Partage chiffré de bout en bout (hybride X25519 + ML-KEM-768)
+nexkeylock share identity --sortie mon-bundle.bin      # publier ma clé publique
+nexkeylock share send --entree Banque --destinataire bundle-ami.bin --sortie msg.bin
+nexkeylock share receive --fichier msg.bin             # révéler le secret reçu
+
+# Accès d'urgence (scellé vers un contact, mécanisme à délai)
+nexkeylock emergency seal --contact bundle-contact.bin --delai-jours 7 --sortie acces.bin
+nexkeylock emergency open --fichier acces.bin --depuis <unix> --maintenant <unix>
+
+# Passkeys (WebAuthn, Ed25519)
+nexkeylock passkey create exemple.com
+nexkeylock passkey assert exemple.com --defi <hex> --origine https://exemple.com
+```
+
 ## Crédits
 
 La liste de mots diceware embarquée provient de l'**EFF** (*EFF Large Wordlist*,

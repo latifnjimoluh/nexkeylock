@@ -21,11 +21,15 @@ presse-papiers = ["dep:arboard"]
 
 [dependencies]
 nex-coffre = { path = "../nex-coffre" }
+nex-partage = { path = "../nex-partage" }
+nex-urgence = { path = "../nex-urgence" }
+nex-passkey = { path = "../nex-passkey" }
 clap.workspace = true
 anyhow.workspace = true
 zeroize.workspace = true
 rpassword.workspace = true
 ciborium.workspace = true
+hex.workspace = true
 arboard = { workspace = true, optional = true }
 
 [dev-dependencies]

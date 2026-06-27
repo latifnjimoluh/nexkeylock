@@ -23,6 +23,10 @@ pub enum ErreurUrgence {
     /// Erreur du partage hybride sous-jacent.
     #[error("erreur de partage")]
     Partage(#[from] ErreurPartage),
+
+    /// Octets sérialisés invalides.
+    #[error("données d'accès d'urgence invalides")]
+    Format,
 }
 
 /// État du mécanisme à délai.
@@ -116,6 +120,106 @@ impl AccesUrgence {
     pub fn etat(&self) -> &EtatAcces {
         &self.etat
     }
+
+    /// Sérialise l'accès d'urgence (pour stockage côté serveur).
+    pub fn vers_octets(&self) -> Vec<u8> {
+        let mut v = Vec::new();
+        ecrire_bloc(&mut v, self.nom_contact.as_bytes());
+        ecrire_bloc(&mut v, &self.acces_scelle);
+        v.extend_from_slice(&self.delai_secondes.to_le_bytes());
+        match &self.etat {
+            EtatAcces::Inactif => v.push(0),
+            EtatAcces::Demande { depuis_unix } => {
+                v.push(1);
+                v.extend_from_slice(&depuis_unix.to_le_bytes());
+            }
+            EtatAcces::Refuse => v.push(2),
+        }
+        v
+    }
+
+    /// Reconstruit un accès d'urgence depuis ses octets.
+    ///
+    /// # Erreurs
+    /// [`ErreurUrgence::Format`] si les octets sont malformés.
+    pub fn depuis_octets(donnees: &[u8]) -> Result<Self, ErreurUrgence> {
+        let mut lecteur = Lecteur::new(donnees);
+        let nom_contact =
+            String::from_utf8(lecteur.bloc()?.to_vec()).map_err(|_| ErreurUrgence::Format)?;
+        let acces_scelle = lecteur.bloc()?.to_vec();
+        let delai_secondes = u64::from_le_bytes(
+            lecteur
+                .reste(8)?
+                .try_into()
+                .map_err(|_| ErreurUrgence::Format)?,
+        );
+        let etat = match lecteur.reste(1)?[0] {
+            0 => EtatAcces::Inactif,
+            1 => EtatAcces::Demande {
+                depuis_unix: u64::from_le_bytes(
+                    lecteur
+                        .reste(8)?
+                        .try_into()
+                        .map_err(|_| ErreurUrgence::Format)?,
+                ),
+            },
+            2 => EtatAcces::Refuse,
+            _ => return Err(ErreurUrgence::Format),
+        };
+        if !lecteur.est_termine() {
+            return Err(ErreurUrgence::Format);
+        }
+        Ok(Self {
+            nom_contact,
+            acces_scelle,
+            delai_secondes,
+            etat,
+        })
+    }
+}
+
+// --- Codec longueur-préfixée (privé) --------------------------------------
+
+fn ecrire_bloc(sortie: &mut Vec<u8>, bloc: &[u8]) {
+    sortie.extend_from_slice(&(bloc.len() as u32).to_le_bytes());
+    sortie.extend_from_slice(bloc);
+}
+
+struct Lecteur<'a> {
+    donnees: &'a [u8],
+    position: usize,
+}
+
+impl<'a> Lecteur<'a> {
+    fn new(donnees: &'a [u8]) -> Self {
+        Self {
+            donnees,
+            position: 0,
+        }
+    }
+
+    fn reste(&mut self, n: usize) -> Result<&'a [u8], ErreurUrgence> {
+        let fin = self.position.checked_add(n).ok_or(ErreurUrgence::Format)?;
+        let t = self
+            .donnees
+            .get(self.position..fin)
+            .ok_or(ErreurUrgence::Format)?;
+        self.position = fin;
+        Ok(t)
+    }
+
+    fn bloc(&mut self) -> Result<&'a [u8], ErreurUrgence> {
+        let a: [u8; 4] = self
+            .reste(4)?
+            .try_into()
+            .map_err(|_| ErreurUrgence::Format)?;
+        let n = u32::from_le_bytes(a) as usize;
+        self.reste(n)
+    }
+
+    fn est_termine(&self) -> bool {
+        self.position == self.donnees.len()
+    }
 }
 
 /// Côté contact : déchiffre le matériel d'accès libéré par le serveur.
@@ -185,5 +289,32 @@ mod tests {
         let scelle = acces.liberer(DELAI).unwrap();
         // Le matériel est scellé pour le bon contact uniquement.
         assert!(recuperer_materiel(&autre_prive, scelle).is_err());
+    }
+
+    #[test]
+    fn serialisation_aller_retour() {
+        let (contact_prive, contact_public) = generer_paire();
+        let mut acces = AccesUrgence::configurer("Eve", &contact_public, MATERIEL, DELAI).unwrap();
+        acces.demander(1_234);
+
+        let octets = acces.vers_octets();
+        let rechargee = AccesUrgence::depuis_octets(&octets).unwrap();
+        assert_eq!(rechargee.nom_contact(), "Eve");
+        assert_eq!(rechargee.etat(), &EtatAcces::Demande { depuis_unix: 1_234 });
+
+        // L'accès rechargé reste fonctionnel à l'échéance.
+        let scelle = rechargee.liberer(1_234 + DELAI).unwrap();
+        assert_eq!(
+            recuperer_materiel(&contact_prive, scelle).unwrap(),
+            MATERIEL
+        );
+    }
+
+    #[test]
+    fn deserialisation_invalide_rejetee() {
+        assert!(matches!(
+            AccesUrgence::depuis_octets(b"x"),
+            Err(ErreurUrgence::Format)
+        ));
     }
 }

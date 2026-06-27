@@ -309,6 +309,23 @@ impl CoffreDeverrouille {
         self.toucher();
     }
 
+    /// Passkeys sérialisées stockées dans le coffre.
+    pub fn passkeys(&self) -> &[Vec<u8>] {
+        &self.contenu.passkeys
+    }
+
+    /// Ajoute une passkey sérialisée.
+    pub fn ajouter_passkey(&mut self, octets: Vec<u8>) {
+        self.contenu.passkeys.push(octets);
+        self.toucher();
+    }
+
+    /// Remplace l'ensemble des passkeys (p. ex. après mise à jour d'un compteur).
+    pub fn definir_passkeys(&mut self, passkeys: Vec<Vec<u8>>) {
+        self.contenu.passkeys = passkeys;
+        self.toucher();
+    }
+
     /// Ajoute une entrée au coffre (en mémoire ; appeler [`Self::enregistrer`]
     /// pour persister).
     pub fn ajouter(&mut self, entree: Entree) {
