@@ -64,11 +64,29 @@ pub fn generer_paire() -> (ClesPrivees, ClesPubliques) {
     )
 }
 
-/// Combine les deux secrets partagés en une clé symétrique via HKDF-SHA256.
-fn combiner(ss_x: &[u8], ss_mlkem: &[u8]) -> Result<CleSecrete, ErreurPartage> {
-    let mut ikm = Zeroizing::new(Vec::with_capacity(ss_x.len() + ss_mlkem.len()));
+/// Construit le **transcript** d'encapsulation à lier dans la dérivation :
+/// clé publique éphémère X25519 ‖ clé publique statique du destinataire ‖ texte
+/// chiffré ML-KEM. Le lier (façon X-Wing) garantit que la clé dérivée engage
+/// l'intégralité du matériel d'encapsulation, et neutralise le caractère non
+/// contributif de X25519 (une clé éphémère de petit ordre n'est plus
+/// silencieusement « rejouable » sans changer la clé finale).
+fn transcript(x_eph: &PublicKey, x_destinataire: &PublicKey, mlkem_ct: &CtMlKem) -> Vec<u8> {
+    let mut t = Vec::with_capacity(32 + 32 + mlkem_ct.as_slice().len());
+    t.extend_from_slice(x_eph.as_bytes());
+    t.extend_from_slice(x_destinataire.as_bytes());
+    t.extend_from_slice(mlkem_ct.as_slice());
+    t
+}
+
+/// Combine les deux secrets partagés **et le transcript d'encapsulation** en une
+/// clé symétrique via HKDF-SHA256.
+fn combiner(ss_x: &[u8], ss_mlkem: &[u8], transcript: &[u8]) -> Result<CleSecrete, ErreurPartage> {
+    let mut ikm = Zeroizing::new(Vec::with_capacity(
+        ss_x.len() + ss_mlkem.len() + transcript.len(),
+    ));
     ikm.extend_from_slice(ss_x);
     ikm.extend_from_slice(ss_mlkem);
+    ikm.extend_from_slice(transcript);
 
     let hk = Hkdf::<Sha256>::new(None, &ikm);
     let mut sortie = [0u8; 32];
@@ -99,7 +117,8 @@ pub fn encapsuler(
         .encapsulate(&mut OsRng)
         .map_err(|_| ErreurPartage::Encapsulation)?;
 
-    let cle = combiner(ss_x.as_bytes(), ss_mlkem.as_slice())?;
+    let transcript = transcript(&x_eph_pub, &destinataire.x, &mlkem_ct);
+    let cle = combiner(ss_x.as_bytes(), ss_mlkem.as_slice(), &transcript)?;
     Ok((
         Encapsulation {
             x_eph: x_eph_pub,
@@ -123,7 +142,15 @@ pub fn decapsuler(
         .mlkem
         .decapsulate(&encapsulation.mlkem_ct)
         .map_err(|_| ErreurPartage::Decapsulation)?;
-    combiner(ss_x.as_bytes(), ss_mlkem.as_slice())
+    // Reconstitue le même transcript que l'émetteur (clé publique statique du
+    // destinataire dérivée de sa clé privée).
+    let x_destinataire = PublicKey::from(&destinataire.x);
+    let transcript = transcript(
+        &encapsulation.x_eph,
+        &x_destinataire,
+        &encapsulation.mlkem_ct,
+    );
+    combiner(ss_x.as_bytes(), ss_mlkem.as_slice(), &transcript)
 }
 
 // --- Sérialisation (transport / stockage) ---------------------------------
@@ -316,6 +343,34 @@ mod tests {
             Encapsulation::depuis_octets(&[0u8; 10]),
             Err(ErreurPartage::Format)
         ));
+    }
+
+    #[test]
+    fn tailles_conformes_fips203_ml_kem_768() {
+        // Contrôle structurel de conformité FIPS 203 pour ML-KEM-768 :
+        //   clé d'encapsulation (ek) = 1184 o ; clé de décapsulation (dk) = 2400 o ;
+        //   texte chiffré (ct) = 1088 o ; secret partagé = 32 o.
+        // La conformité ACVP complète des *valeurs* reste déléguée à la crate
+        // auditée `ml-kem` (qui exécute ces vecteurs) ; on vérifie ici que
+        // l'intégration en respecte la structure.
+        let (prive, public) = generer_paire();
+        assert_eq!(
+            public.mlkem.as_bytes().as_slice().len(),
+            1184,
+            "taille de la clé d'encapsulation ML-KEM-768"
+        );
+        assert_eq!(
+            prive.mlkem.as_bytes().as_slice().len(),
+            2400,
+            "taille de la clé de décapsulation ML-KEM-768"
+        );
+        let (encap, cle) = encapsuler(&public).unwrap();
+        assert_eq!(
+            encap.mlkem_ct.as_slice().len(),
+            1088,
+            "taille du texte chiffré ML-KEM-768"
+        );
+        assert_eq!(cle.exposer().len(), 32, "taille du secret partagé");
     }
 
     #[test]

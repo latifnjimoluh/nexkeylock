@@ -50,6 +50,10 @@ nexkeylock est un gestionnaire de mots de passe **zéro-connaissance** : seul l'
   (politique système) et ne sont **pas** désactivables de façon fiable par
   l'application : non-opération assumée et documentée.
 - **Aucun secret** dans les journaux, messages d'erreur, `panic!` ou rapports de plantage.
+- **Presse-papiers** (optionnel, `--features presse-papiers`, désactivé par
+  défaut) : le secret copié est effacé après un délai, *best-effort* — non
+  garanti si le processus est interrompu avant l'échéance, et un gestionnaire de
+  presse-papiers tiers peut l'avoir copié entre-temps.
 
 **Limites honnêtes :** en Rust, l'effacement est fort mais non absolu (copies en
 pile, tampons intermédiaires que le compilateur peut produire). Le verrouillage

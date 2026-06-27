@@ -2,7 +2,17 @@
 //!
 //! La logique de copie/effacement est abstraite derrière [`PressePapiers`] afin
 //! d'être testable sans bibliothèque système. L'implémentation réelle (arboard)
-//! n'est compilée qu'avec la fonctionnalité `presse-papiers`.
+//! n'est compilée qu'avec la fonctionnalité `presse-papiers` (désactivée par
+//! défaut).
+//!
+//! **Limites honnêtes (best-effort)** :
+//! - l'effacement est synchrone : le processus reste vivant pendant le délai.
+//!   S'il est **interrompu** (Ctrl-C, kill, plantage, fermeture du terminal)
+//!   avant l'échéance, le secret **reste** dans le presse-papiers ;
+//! - un gestionnaire de presse-papiers tiers ou une autre application peut avoir
+//!   **copié** la valeur entre-temps : l'effacement ne la révoque pas ;
+//! - sans la fonctionnalité `presse-papiers` compilée, aucune copie n'a lieu
+//!   (la commande `--copier` échoue proprement).
 
 #[cfg(any(feature = "presse-papiers", test))]
 use std::time::Duration;
@@ -21,6 +31,9 @@ pub trait PressePapiers {
 
 /// Copie `valeur` puis l'efface après `delai` (le processus reste vivant
 /// pendant l'attente).
+///
+/// **Best-effort** : si le processus est interrompu avant l'échéance, le secret
+/// n'est pas effacé (voir limites au niveau module).
 #[cfg(any(feature = "presse-papiers", test))]
 pub fn copier_temporaire(pp: &mut dyn PressePapiers, valeur: &str, delai: Duration) -> Result<()> {
     pp.definir(valeur)?;

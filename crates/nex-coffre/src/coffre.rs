@@ -136,10 +136,18 @@ impl CoffreVerrouille {
         let cle_rec = deriver_cle(canonique.as_bytes(), &bloc.sel, parametres)?;
 
         // L'emballage de récupération est authentifié par aad_corps (stable au
-        // changement de mot de passe).
+        // changement de mot de passe), lié au sel et aux paramètres KDF du bloc
+        // (qui sont ainsi authentifiés, pas seulement « auto-cohérents »).
         let aad_corps = self.fichier.entete.aad_corps();
+        let aad = aad_recuperation(
+            &aad_corps,
+            &bloc.sel,
+            bloc.kdf_m_kio,
+            bloc.kdf_t,
+            bloc.kdf_p,
+        );
         let dek_clair = Zeroizing::new(
-            aead::dechiffrer(algo, &cle_rec, &bloc.nonce, &bloc.dek_emballee, &aad_corps)
+            aead::dechiffrer(algo, &cle_rec, &bloc.nonce, &bloc.dek_emballee, &aad)
                 .map_err(|_| ErreurCoffre::MotDePasseInvalide)?,
         );
         let dek = CleSecrete::depuis_tranche(&dek_clair)?;
@@ -241,7 +249,14 @@ impl CoffreDeverrouille {
         let cle_rec = deriver_cle(canonique.as_bytes(), &sel, parametres)?;
         let nonce = nonce_neuf(algo)?;
         let aad_corps = self.entete.aad_corps();
-        let dek_emballee = aead::chiffrer(algo, &cle_rec, &nonce, self.dek.exposer(), &aad_corps)?;
+        let aad = aad_recuperation(
+            &aad_corps,
+            &sel,
+            parametres.memoire_kio,
+            parametres.iterations,
+            parametres.parallelisme,
+        );
+        let dek_emballee = aead::chiffrer(algo, &cle_rec, &nonce, self.dek.exposer(), &aad)?;
 
         let bloc = BlocRecuperation {
             sel,
@@ -526,6 +541,20 @@ fn canonicaliser_code(code: &str) -> String {
         .filter(char::is_ascii_alphanumeric)
         .flat_map(char::to_lowercase)
         .collect()
+}
+
+/// Données associées de l'emballage de récupération : `aad_corps` (version+algo,
+/// stable au changement de mot de passe) lié au **sel** et aux **paramètres
+/// KDF** du bloc, afin que ces derniers soient authentifiés et non simplement
+/// auto-cohérents (cf. SECURITY_AUDIT AUDIT-007).
+fn aad_recuperation(aad_corps: &[u8], sel: &[u8], m_kio: u32, t: u32, p: u32) -> Vec<u8> {
+    let mut aad = Vec::with_capacity(aad_corps.len() + sel.len() + 12);
+    aad.extend_from_slice(aad_corps);
+    aad.extend_from_slice(sel);
+    aad.extend_from_slice(&m_kio.to_le_bytes());
+    aad.extend_from_slice(&t.to_le_bytes());
+    aad.extend_from_slice(&p.to_le_bytes());
+    aad
 }
 
 #[cfg(test)]

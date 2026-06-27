@@ -136,10 +136,10 @@ restant requis avant tout usage réel (cf. rappel ci-dessous).
 | AUDIT-002 | Désactivation des core dumps annoncée, non implémentée | Moyenne | `SECURITY.md:40` | **Corrigé** (`durcissement-memoire-c1`) |
 | AUDIT-003 | `Debug` dérivé sur `ContenuCoffre` expose des clés privées | Faible | `modele.rs:89-100` | **Corrigé** (`durcissement-memoire-c1`) |
 | AUDIT-004 | Dépendances inutilisées (`region`,`secrecy`,`rusqlite`) ; `secrecy` cité en doc | Faible | `Cargo.toml:59-65` ; `SECURITY.md:38` | **Corrigé** (`durcissement-memoire-c1`) |
-| AUDIT-005 | Effacement presse-papiers bloquant, best-effort, off par défaut | Faible | `presse_papiers.rs:24-30` | Ouvert |
-| AUDIT-006 | Combinateur KEM hybride sans liaison de transcript ; X25519 non contributif | Informative | `hybride.rs:67-81,121` | Ouvert |
-| AUDIT-007 | Paramètres KDF du bloc de récupération non couverts par l'AAD | Informative | `coffre.rs:135-143` ; `format.rs:32-46` | Ouvert |
-| AUDIT-008 | Conformité ML-KEM (FIPS 203) déléguée, sans KAT NIST ACVP interne | Faible | `hybride.rs:322-336` ; `SECURITY.md:71` | Accepté/documenté |
+| AUDIT-005 | Effacement presse-papiers bloquant, best-effort, off par défaut | Faible | `presse_papiers.rs:24-30` | **Documenté** (`constats-non-bloquants`) |
+| AUDIT-006 | Combinateur KEM hybride sans liaison de transcript ; X25519 non contributif | Informative | `hybride.rs:67-81,121` | **Corrigé** (`constats-non-bloquants`) |
+| AUDIT-007 | Paramètres KDF du bloc de récupération non couverts par l'AAD | Informative | `coffre.rs:135-143` ; `format.rs:32-46` | **Corrigé** (`constats-non-bloquants`) |
+| AUDIT-008 | Conformité ML-KEM (FIPS 203) déléguée, sans KAT NIST ACVP interne | Faible | `hybride.rs:322-336` ; `SECURITY.md:71` | **Atténué** (`constats-non-bloquants`) |
 
 ---
 
@@ -249,6 +249,11 @@ restant requis avant tout usage réel (cf. rappel ci-dessous).
 - **Recommandation** : documenter clairement la limite (effacement best-effort,
   perdu si interruption) ; envisager un effacement plus robuste (processus
   détaché) si la fonctionnalité devient un défaut.
+- **Remédiation appliquée** (`constats-non-bloquants`) : limites best-effort
+  documentées explicitement dans `presse_papiers.rs` (doc module + fonction) et
+  dans `SECURITY.md` §4 (perte si interruption, copie possible par un
+  gestionnaire tiers, fonctionnalité désactivée par défaut). Pas de changement de
+  comportement (durcissement « processus détaché » laissé en piste future).
 
 ### AUDIT-006 — Combinateur KEM hybride sans liaison de transcript
 - **Sévérité** : Informative.
@@ -266,6 +271,13 @@ restant requis avant tout usage réel (cf. rappel ci-dessous).
   pour des propriétés avancées (engagement de clé, multi-destinataires).
 - **Recommandation** : suivre la construction X-Wing — inclure `ek`, `ct_mlkem`
   et `x_eph_pub` dans l'entrée du HKDF. Amélioration de robustesse, non bloquante.
+- **Remédiation appliquée** (`constats-non-bloquants`) : `combiner` lie désormais
+  un **transcript** (`x_eph_pub ‖ clé publique statique du destinataire ‖
+  texte chiffré ML-KEM`) dans l'IKM du HKDF, calculé de façon identique côté
+  émetteur et destinataire (`hybride.rs::transcript`). La clé dérivée engage tout
+  le matériel d'encapsulation ; le caractère non contributif de X25519 est
+  neutralisé. Aucun ciphertext persistant ne dépend de l'ancienne dérivation
+  (messages transitoires) ; tests d'aller-retour et d'altération verts.
 
 ### AUDIT-007 — Paramètres KDF du bloc de récupération hors AAD
 - **Sévérité** : Informative.
@@ -281,6 +293,13 @@ restant requis avant tout usage réel (cf. rappel ci-dessous).
   ne rend pas la force brute praticable.
 - **Recommandation** : par robustesse, inclure les paramètres du bloc de
   récupération dans l'AAD de son propre emballage.
+- **Remédiation appliquée** (`constats-non-bloquants`) : l'AAD de l'emballage de
+  récupération est désormais `aad_corps ‖ sel ‖ m ‖ t ‖ p`
+  (`coffre.rs::aad_recuperation`), liant explicitement le sel et les paramètres
+  KDF du bloc. Défense en profondeur **sans effet comportemental observable**
+  (toute altération de ces champs cassait déjà la dérivation de clé) : aucun test
+  spécifique ajouté pour ne pas créer de test tautologique ; les tests de
+  récupération existants confirment que l'aller-retour reste fonctionnel.
 
 ### AUDIT-008 — Conformité ML-KEM déléguée sans KAT NIST ACVP interne
 - **Sévérité** : Faible (lacune de test / risque résiduel, documenté).
@@ -294,6 +313,14 @@ restant requis avant tout usage réel (cf. rappel ci-dessous).
   *avancé* séparé du cœur, mais c'est un point de confiance externe.
 - **Recommandation** : ajouter au moins un KAT ML-KEM-768 (ACVP) en test
   d'intégration ; surveiller la maturité/versions de `ml-kem` via `cargo audit`.
+- **Remédiation appliquée** (`constats-non-bloquants`) : ajout d'un test de
+  **conformité structurelle FIPS 203** (`tailles_conformes_fips203_ml_kem_768`)
+  vérifiant les tailles ML-KEM-768 (ek=1184, dk=2400, ct=1088, secret=32). La
+  conformité ACVP **des valeurs** reste honnêtement déléguée à la crate auditée
+  `ml-kem` (qui exécute ces vecteurs) : importer un vecteur ACVP complet
+  (~1 Ko codé en dur) aurait risqué l'erreur de transcription — proscrit par la
+  règle « ne jamais inventer/tronquer un vecteur ». Déterminisme et interop déjà
+  couverts. Risque résiduel : confiance dans `ml-kem` (cf. §8).
 
 ---
 
