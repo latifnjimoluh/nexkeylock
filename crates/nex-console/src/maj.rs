@@ -240,15 +240,31 @@ fn delai_humain(horodatage: u64) -> String {
     }
 }
 
-/// Dossier de téléchargement (Téléchargements de l'utilisateur, sinon temp).
+/// Dossier de téléchargement : les Téléchargements de l'utilisateur s'ils sont
+/// réellement inscriptibles, sinon le dossier temporaire.
+///
+/// On sonde l'écriture réelle car `Downloads` peut être une jonction OneDrive
+/// redirigée (présente pour `is_dir()` mais non inscriptible hors-ligne).
 fn dossier_telechargements() -> std::path::PathBuf {
     if let Some(p) = std::env::var_os("USERPROFILE") {
         let d = std::path::PathBuf::from(p).join("Downloads");
-        if d.is_dir() {
+        if dossier_inscriptible(&d) {
             return d;
         }
     }
     std::env::temp_dir()
+}
+
+/// Teste si l'on peut écrire dans `dossier` (crée puis supprime un fichier sonde).
+fn dossier_inscriptible(dossier: &std::path::Path) -> bool {
+    let sonde = dossier.join(".nexkeylock-sonde-ecriture");
+    match std::fs::write(&sonde, b"") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&sonde);
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 /// Lance un exécutable (l'installateur déclenche son élévation UAC lui-même).
