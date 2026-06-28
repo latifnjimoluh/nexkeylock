@@ -95,6 +95,7 @@ fn mauvais_mot_de_passe_echoue() {
 fn generate_sans_coffre() {
     Command::cargo_bin("nexkeylock")
         .unwrap()
+        .env("NEXKEYLOCK_SANS_VERIF_MAJ", "1")
         .args(["generate", "--longueur", "30"])
         .assert()
         .success()
@@ -104,6 +105,7 @@ fn generate_sans_coffre() {
 
     Command::cargo_bin("nexkeylock")
         .unwrap()
+        .env("NEXKEYLOCK_SANS_VERIF_MAJ", "1")
         .args(["generate", "--mots", "6"])
         .assert()
         .success()

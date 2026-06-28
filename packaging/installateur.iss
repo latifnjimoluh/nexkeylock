@@ -5,7 +5,7 @@
 ; d'ajouter le dossier d'installation au PATH machine (option cochée par défaut).
 
 #define MonNom "nexkeylock"
-#define MaVersion "0.1.0"
+#define MaVersion "0.2.0"
 #define MonEditeur "Équipe nexkeylock"
 #define MonExe "nexkeylock.exe"
 

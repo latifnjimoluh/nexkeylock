@@ -79,6 +79,31 @@ nexkeylock passkey create exemple.com
 nexkeylock passkey assert exemple.com --defi <hex> --origine https://exemple.com
 ```
 
+### Mises à jour et paramètres
+
+nexkeylock vérifie automatiquement les nouvelles versions (au plus une fois par
+jour) et affiche un bandeau + une notification système (toast Windows) quand une
+mise à jour est disponible. La vérification interroge l'API publique GitHub
+Releases ; **aucune donnée n'est transmise** (seule la version locale est
+comparée).
+
+```sh
+# Volet paramètres : afficher / régler la vérification automatique
+nexkeylock parametres                       # afficher l'état
+nexkeylock parametres --maj-auto off        # désactiver la vérification auto
+nexkeylock parametres --maj-auto on --intervalle 12   # réactiver, toutes les 12 h
+
+# Mises à jour
+nexkeylock maj --verifier                   # vérifier maintenant
+nexkeylock maj --telecharger                # télécharger l'installateur (Téléchargements)
+nexkeylock maj --installer                  # télécharger puis lancer l'installateur
+```
+
+La configuration (préférences, date de dernière vérification) est stockée hors
+du coffre, dans `%APPDATA%\nexkeylock\config.json` (Windows). La variable
+`NEXKEYLOCK_SANS_VERIF_MAJ=1` désactive ponctuellement la vérification au
+lancement (utile en CI/scripts).
+
 ## Crédits
 
 La liste de mots diceware embarquée provient de l'**EFF** (*EFF Large Wordlist*,

@@ -20,13 +20,13 @@ $env:Path = "C:\Users\<vous>\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bi
 
 # 1) Binaire portable (release, presse-papiers activé)
 cargo build --release -p nex-console --features presse-papiers
-Copy-Item target\release\nexkeylock.exe dist\nexkeylock-0.1.0-portable.exe
+Copy-Item target\release\nexkeylock.exe dist\nexkeylock-0.2.0-portable.exe
 
 # 2) Installateur Windows
 & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installateur.iss
 ```
 
-L'installateur résultant est `dist\nexkeylock-0.1.0-installateur.exe`.
+L'installateur résultant est `dist\nexkeylock-0.2.0-installateur.exe`.
 
 ## Notes
 

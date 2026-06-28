@@ -10,6 +10,7 @@
 
 mod avance;
 mod durcissement;
+mod maj;
 mod presse_papiers;
 mod saisie;
 
@@ -31,6 +32,7 @@ use nex_coffre::{
 };
 
 use crate::avance::{CommandeEmergency, CommandePasskey, CommandeShare};
+use crate::maj::{CommandeMaj, CommandeParametres};
 use crate::saisie::{
     lire_code_recuperation, lire_mot_de_passe, lire_nouveau_mot_de_passe, lire_secret_entree,
 };
@@ -127,6 +129,10 @@ enum Commande {
         #[command(subcommand)]
         commande: CommandePasskey,
     },
+    /// Affiche ou modifie les paramètres (mises à jour automatiques…).
+    Parametres(CommandeParametres),
+    /// Vérifie, télécharge ou installe la dernière version.
+    Maj(CommandeMaj),
 }
 
 #[derive(Args)]
@@ -205,6 +211,11 @@ fn main() -> ExitCode {
 }
 
 fn executer(cli: Cli) -> Result<()> {
+    // Vérification automatique des mises à jour (best-effort, ~1×/jour), sauf
+    // pour les commandes de mise à jour/paramètres qui s'en chargent elles-mêmes.
+    if !matches!(cli.commande, Commande::Maj(_) | Commande::Parametres(_)) {
+        maj::verifier_au_lancement();
+    }
     let chemin = chemin_coffre(cli.coffre);
     match cli.commande {
         Commande::Init => cmd_init(&chemin),
@@ -229,6 +240,8 @@ fn executer(cli: Cli) -> Result<()> {
         Commande::Share { commande } => avance::executer_share(&chemin, commande),
         Commande::Emergency { commande } => avance::executer_emergency(&chemin, commande),
         Commande::Passkey { commande } => avance::executer_passkey(&chemin, commande),
+        Commande::Parametres(cmd) => maj::executer_parametres(cmd),
+        Commande::Maj(cmd) => maj::executer_maj(cmd),
     }
 }
 

@@ -24,6 +24,7 @@ nex-coffre = { path = "../nex-coffre" }
 nex-partage = { path = "../nex-partage" }
 nex-urgence = { path = "../nex-urgence" }
 nex-passkey = { path = "../nex-passkey" }
+nex-maj = { path = "../nex-maj" }
 clap.workspace = true
 anyhow.workspace = true
 zeroize.workspace = true

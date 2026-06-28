@@ -242,6 +242,13 @@ Défaut **production** : Argon2id `m=256 Mio, t=3, p=4` (calibré à ~0,5 s par 
 
 > Note : les éléments marqués `[~]` dépendent d'une exécution CI (Linux/nightly) que la machine de développement Windows actuelle ne peut pas réaliser localement (pas de proxy `rustup`, pas de composant `llvm-tools-preview` ni de toolchain nightly).
 
+### Jalon 8 — Distribution et mises à jour (v0.2.0)
+**Objectif :** rendre le logiciel installable et capable de se tenir à jour.
+- [x] Empaquetage Windows : binaire **portable** + **installateur** Inno Setup (`packaging/`), publiés en release GitHub. Profil release optimisé taille (`opt-level=z`, LTO, strip ; ~1 Mo cœur).
+- [x] Crate `nex-maj` : vérification de version via l'**API publique GitHub Releases** (HTTP minimal `minreq` + TLS système, sans secret transmis), comparaison **semver**, téléchargement d'asset, **notification toast** Windows (sans dépendance lourde).
+- [x] CLI : `parametres` (volet paramètres : vérif. auto on/off, intervalle) et `maj` (`--verifier`/`--telecharger`/`--installer`) ; vérification automatique au lancement (≤ 1×/jour) avec bandeau + toast.
+- [ ] Signature de code Authenticode des exécutables (nécessite un certificat ; SmartScreen affiche « Éditeur inconnu » sans).
+
 ---
 
 ## 4. Stratégie de test globale (matrice)
