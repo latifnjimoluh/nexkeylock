@@ -4,13 +4,25 @@
 //! (`nex-coffre`) ; ce crate n'orchestre que l'interface et les commandes.
 
 mod commandes;
+mod erreur;
+mod etat;
+
+use etat::EtatPartage;
 
 /// Lance l'application. Annoté pour servir aussi de point d'entrée mobile
 /// (préparation des cibles iOS/Android sans réécriture).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let resultat = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commandes::version_coeur])
+        .manage(EtatPartage::default())
+        .invoke_handler(tauri::generate_handler![
+            commandes::version_coeur,
+            commandes::coffre_existe,
+            commandes::etat,
+            commandes::creer_coffre,
+            commandes::deverrouiller,
+            commandes::verrouiller,
+        ])
         .run(tauri::generate_context!());
 
     if let Err(erreur) = resultat {

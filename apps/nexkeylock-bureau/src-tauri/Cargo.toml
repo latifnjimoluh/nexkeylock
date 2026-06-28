@@ -25,8 +25,12 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+zeroize = "1"
 # Le cœur cryptographique et le coffre : AUCUNE crypto n'est réimplémentée ici.
 nex-coffre = { path = "../../../crates/nex-coffre" }
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 # Activé par Tauri en production pour retirer les outils de développement.
