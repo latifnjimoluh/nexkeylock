@@ -1,0 +1,19 @@
+nexkeylock est un outil en ligne de commande (CLI).
+
+Après l'installation, ouvrez un terminal (PowerShell ou Invite de commandes)
+et lancez :
+
+    nexkeylock --help
+
+Si vous avez coché « Ajouter nexkeylock au PATH », la commande sera disponible
+depuis n'importe quel dossier. Vous devrez peut-être rouvrir votre terminal
+pour que le PATH soit pris en compte.
+
+Premiers pas :
+
+    nexkeylock init                 (crée un coffre)
+    nexkeylock add                  (ajoute une entrée)
+    nexkeylock list                 (liste les entrées)
+    nexkeylock get <nom>            (révèle un mot de passe)
+
+Toutes les données sont chiffrées localement. Aucun secret n'est transmis.

@@ -19,6 +19,9 @@ recovery-code.txt
 *.profraw
 lcov.info
 
+# Livrables empaquetés (exécutables produits localement — non versionnés)
+/dist
+
 # Divers OS / éditeurs
 .DS_Store
 Thumbs.db

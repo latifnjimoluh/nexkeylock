@@ -961,7 +961,7 @@ dependencies = [
 
 [[package]]
 name = "nex-coffre"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "ciborium",
  "hex",
@@ -978,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "nex-console"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "nex-cryptographie"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "nex-partage"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "hkdf",
  "ml-kem",
@@ -1034,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "nex-passkey"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
  "nex-cryptographie",
@@ -1045,7 +1045,7 @@ dependencies = [
 
 [[package]]
 name = "nex-sync"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "nex-coffre",
  "nex-cryptographie",
@@ -1055,7 +1055,7 @@ dependencies = [
 
 [[package]]
 name = "nex-urgence"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "nex-partage",
  "thiserror",

@@ -1,0 +1,12 @@
+nexkeylock — Gestionnaire de mots de passe à architecture zéro-connaissance
+
+Distribué sous double licence, au choix : MIT OU Apache-2.0.
+
+Vous pouvez utiliser, copier, modifier et redistribuer ce logiciel selon les
+termes de l'une OU l'autre de ces licences. Les textes intégraux des licences
+MIT et Apache-2.0 sont disponibles aux adresses :
+
+  - MIT        : https://opensource.org/licenses/MIT
+  - Apache-2.0 : https://www.apache.org/licenses/LICENSE-2.0
+
+CE LOGICIEL EST FOURNI « EN L'ÉTAT », SANS GARANTIE D'AUCUNE SORTE.
