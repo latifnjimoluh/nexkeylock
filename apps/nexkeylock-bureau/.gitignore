@@ -1,0 +1,16 @@
+# Dépendances et build frontend
+node_modules
+dist
+dist-ssr
+coverage
+*.local
+
+# Build Tauri (Rust)
+src-tauri/target
+
+# Fichiers générés par Tauri (schémas de capacités, etc.)
+src-tauri/gen
+
+# Éditeurs / OS
+.DS_Store
+Thumbs.db

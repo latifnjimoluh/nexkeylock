@@ -21,7 +21,9 @@ members = [
     "crates/nex-maj",
 ]
 # Le dossier fuzz/ utilise la toolchain nightly + libFuzzer : isolé du workspace.
-exclude = ["fuzz"]
+# L'app de bureau (Tauri v2) est isolée pour ne pas alourdir `cargo test
+# --workspace` ni la CI cœur ; elle se construit via `cargo tauri build`.
+exclude = ["fuzz", "apps/nexkeylock-bureau/src-tauri"]
 
 [workspace.package]
 version = "0.2.0"

@@ -1,0 +1,37 @@
+/*
+ * Jetons de couleur NexKeyLock (canaux RVB, pour l'alpha Tailwind).
+ * Thème SOMBRE par défaut (outil de sécurité, esthétique sobre) ; thème CLAIR
+ * via [data-theme="clair"]. Le thème « système » est résolu côté JS qui pose
+ * l'attribut effectif.
+ *
+ * Contrastes vérifiés pour viser WCAG AA (texte/fond ≥ 4.5:1).
+ */
+
+:root,
+[data-theme="sombre"] {
+  --c-fond: 15 18 24; /* #0f1218 */
+  --c-surface: 23 27 35; /* #171b23 */
+  --c-surface-haute: 31 37 48; /* #1f2530 */
+  --c-bordure: 45 52 66; /* #2d3442 */
+  --c-texte: 233 237 243; /* #e9edf3 */
+  --c-texte-doux: 156 166 183; /* #9ca6b7 */
+  --c-accent: 96 165 250; /* #60a5fa */
+  --c-accent-contraste: 8 12 18; /* texte sur accent */
+  --c-succes: 52 211 153; /* #34d399 */
+  --c-alerte: 251 191 36; /* #fbbf24 */
+  --c-danger: 248 113 113; /* #f87171 */
+}
+
+[data-theme="clair"] {
+  --c-fond: 247 248 250; /* #f7f8fa */
+  --c-surface: 255 255 255; /* #ffffff */
+  --c-surface-haute: 241 243 246; /* #f1f3f6 */
+  --c-bordure: 220 224 230; /* #dce0e6 */
+  --c-texte: 23 27 35; /* #171b23 */
+  --c-texte-doux: 91 100 114; /* #5b6472 */
+  --c-accent: 37 99 235; /* #2563eb */
+  --c-accent-contraste: 255 255 255;
+  --c-succes: 5 150 105; /* #059669 */
+  --c-alerte: 217 119 6; /* #d97706 */
+  --c-danger: 220 38 38; /* #dc2626 */
+}
