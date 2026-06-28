@@ -22,6 +22,7 @@ pub fn run() {
             commandes::creer_coffre,
             commandes::deverrouiller,
             commandes::verrouiller,
+            commandes::configurer_recuperation,
         ])
         .run(tauri::generate_context!());
 

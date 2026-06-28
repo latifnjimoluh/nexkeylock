@@ -53,3 +53,13 @@ pub fn verrouiller(etat: State<'_, EtatPartage>) -> Result<Apercu, ErreurCommand
     garde.verrouiller();
     Ok(garde.apercu())
 }
+
+/// Configure un code de récupération sur le coffre déverrouillé et le renvoie.
+///
+/// Le code est destiné à être **affiché une seule fois** par l'interface, puis
+/// oublié : c'est sa seule raison de traverser la frontière.
+#[tauri::command]
+pub fn configurer_recuperation(etat: State<'_, EtatPartage>) -> Result<String, ErreurCommande> {
+    let code = etat.acceder()?.configurer_recuperation()?;
+    Ok(code.to_string())
+}

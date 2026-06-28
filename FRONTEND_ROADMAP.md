@@ -5,7 +5,7 @@
 > aucune cryptographie**. Cible : Windows / macOS / Linux, avec une déclinaison
 > **mobile (iOS/Android) anticipée mais différée**.
 >
-> **Statut : VALIDÉE — construction en cours (F0→).** Décisions actées :
+> **Statut : VALIDÉE — F0, F1, F2 terminés ; suite F3→.** Décisions actées :
 > frontend **français**, **vérification de fuite en ligne opt-in** (HIBP
 > k-anonymat, préfixe seulement, côté Rust), **biométrie bureau dès F7 « au
 > mieux »** (Windows Hello).
@@ -211,6 +211,12 @@ persistent via `CoffreDeverrouille::enregistrer`.
 | Composants | Vitest + Testing Library | force, générateur, anneau TOTP, formulaires, vide/erreur |
 | Intégration commandes | tests Rust (`#[test]`) | chaque commande contre un vrai coffre |
 | E2E | `tauri-driver` / Playwright | création, unlock, ajout, reveal/copy, génération, lock |
+
+> **Note d'exécution** : aux jalons F1–F7, la « couche de commandes » est validée
+> par des tests d'intégration **Rust** (contre un vrai coffre) et par des tests
+> d'écran (store + pont réels, IPC `invoke` simulée). Le harnais E2E navigateur
+> complet (`tauri-driver` + WebDriver) est **mis en place et exécuté au Jalon F8**
+> (durcissement), pour éviter de réinstaller le pilote à chaque jalon.
 | Sécurité UI | tests dédiés | pas de secret en stockage navigateur ; presse-papiers ; auto-lock ; mauvais mdp ; anti-XSS |
 | Accessibilité | `axe` | écrans principaux |
 

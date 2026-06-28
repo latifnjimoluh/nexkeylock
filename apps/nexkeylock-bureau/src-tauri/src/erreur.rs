@@ -37,6 +37,11 @@ impl ErreurCommande {
         Self::neuve("mot_de_passe", "Mot de passe maître incorrect.")
     }
 
+    /// Le coffre est verrouillé : l'opération demandée n'est pas disponible.
+    pub fn verrouille() -> Self {
+        Self::neuve("verrouille", "Le coffre est verrouillé.")
+    }
+
     /// État interne incohérent (verrou empoisonné, etc.).
     pub fn interne(detail: &str) -> Self {
         Self::neuve("interne", detail)

@@ -84,6 +84,15 @@ impl EtatCoffre {
         self.coffre = None;
     }
 
+    /// Configure (ou remplace) le code de récupération sur le coffre déverrouillé
+    /// et renvoie le code, à afficher une seule fois.
+    pub fn configurer_recuperation(&mut self) -> Result<Zeroizing<String>, ErreurCommande> {
+        match &mut self.coffre {
+            Some(c) => Ok(c.activer_recuperation(parametres_kdf())?),
+            None => Err(ErreurCommande::verrouille()),
+        }
+    }
+
     /// Métadonnées courantes (aucun secret).
     pub fn apercu(&self) -> Apercu {
         match &self.coffre {
@@ -206,5 +215,18 @@ mod tests {
         let (_d, mut etat) = etat_temporaire();
         let e = etat.deverrouiller(Zeroizing::new("x".into())).unwrap_err();
         assert_eq!(e.code, "introuvable");
+    }
+
+    #[test]
+    fn recuperation_exige_un_coffre_deverrouille() {
+        let (_d, mut etat) = etat_temporaire();
+        // Verrouillé : refus.
+        let e = etat.configurer_recuperation().unwrap_err();
+        assert_eq!(e.code, "verrouille");
+        // Déverrouillé : un code est produit et la récupération est active.
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+        let code = etat.configurer_recuperation().unwrap();
+        assert!(!code.is_empty());
+        assert!(etat.apercu().a_recuperation);
     }
 }
