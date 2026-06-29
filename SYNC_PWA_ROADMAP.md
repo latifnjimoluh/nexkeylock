@@ -4,8 +4,9 @@
 > PC) → tous mes mots de passe**, gratuitement, en restant **zéro-connaissance**,
 > avec une **sécurité renforcée** (second facteur).
 >
-> **Statut : VALIDÉE — S0, S1, S2, S3 faits. Suite : S4 (PWA).**
-> S0 second facteur · S1 serveur · S2 synchro bureau · S3 cœur compilé en WASM.
+> **Statut : VALIDÉE — S0→S5 faits. Suite : S6 (durcissement PWA) · S7 (déploiement).**
+> S0 second facteur · S1 serveur · S2 synchro bureau · S3 cœur WASM · S4 squelette
+> PWA · S5 PWA fonctionnelle + client de synchro (même compte que le bureau).
 
 ---
 

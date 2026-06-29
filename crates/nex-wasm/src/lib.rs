@@ -146,6 +146,28 @@ pub fn fichier_cle_requis(octets: Vec<u8>) -> Result<bool, JsValue> {
         .fichier_cle_requis)
 }
 
+/// Dérive le **hash d'authentification** de synchronisation (hex) à partir de
+/// l'email et du mot de passe maître — **identique au client de bureau** (même
+/// sel dérivé de l'email, mêmes paramètres Argon2id de production). Le mot de
+/// passe ne quitte jamais le WASM ; seul ce hash part vers le serveur.
+#[wasm_bindgen]
+pub fn hash_auth(email: &str, mot_de_passe: &str) -> Result<String, JsValue> {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    h.update(b"nexkeylock-sync-sel:v1");
+    h.update(email.trim().to_lowercase().as_bytes());
+    let sel = h.finalize()[..16].to_vec();
+
+    let cle = nex_cryptographie::kdf::deriver_cle(
+        mot_de_passe.as_bytes(),
+        &sel,
+        ParametresArgon2::default(),
+    )
+    .map_err(|_| js_err("dérivation impossible"))?;
+    let hash = nex_sync::hash_authentification(&cle).map_err(|_| js_err("dérivation impossible"))?;
+    Ok(hex::encode(hash.exposer()))
+}
+
 /// Génère un mot de passe (sans coffre).
 #[wasm_bindgen]
 pub fn generer(longueur: usize, symboles: bool) -> Result<String, JsValue> {

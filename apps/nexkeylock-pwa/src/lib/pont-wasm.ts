@@ -4,7 +4,7 @@
  * Toute la cryptographie vit dans le WASM (cœur audité) ; ce module se contente
  * de charger le module et de réexporter l'API. **Aucune crypto en JS.**
  */
-import init, { CoffrePwa, generer, fichier_cle_requis } from "../coeur-wasm/nex_wasm.js";
+import init, { CoffrePwa, generer, fichier_cle_requis, hash_auth } from "../coeur-wasm/nex_wasm.js";
 
 let chargement: Promise<void> | null = null;
 
@@ -16,4 +16,4 @@ export function initialiserWasm(): Promise<void> {
   return chargement;
 }
 
-export { CoffrePwa, generer, fichier_cle_requis };
+export { CoffrePwa, generer, fichier_cle_requis, hash_auth };

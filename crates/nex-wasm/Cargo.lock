@@ -307,6 +307,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -418,13 +424,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nex-sync"
+version = "0.2.0"
+dependencies = [
+ "nex-cryptographie",
+ "thiserror",
+]
+
+[[package]]
 name = "nex-wasm"
 version = "0.2.0"
 dependencies = [
  "getrandom",
+ "hex",
  "nex-coffre",
+ "nex-cryptographie",
+ "nex-sync",
  "serde",
  "serde_json",
+ "sha2",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]

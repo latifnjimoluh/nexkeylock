@@ -28,7 +28,19 @@ export default defineConfig({
       },
     }),
   ],
-  server: { port: 1430, strictPort: true },
+  server: {
+    port: 1430,
+    strictPort: true,
+    // En dev, /sync est relayé vers le serveur de synchro local (même origine
+    // côté navigateur → CSP stricte). En prod, un reverse-proxy fait de même.
+    proxy: {
+      "/sync": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+        rewrite: (chemin) => chemin.replace(/^\/sync/, ""),
+      },
+    },
+  },
   build: { target: "esnext", sourcemap: false },
   test: {
     environment: "jsdom",
