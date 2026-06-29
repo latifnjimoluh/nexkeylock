@@ -13,9 +13,23 @@ use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
 use crate::etat::{
-    Apercu, CodeTotp, DonneesEntree, ElementFuite, EntreeApercu, EtatPartage, RapportAuditApp,
+    Apercu, CodeTotp, DonneesEntree, ElementFuite, EntreeApercu, EtatPartage, ParametresKdf,
+    RapportAuditApp,
 };
 use crate::presse_papiers;
+use crate::reglages::Reglages;
+
+/// Version de l'application (pour la vérification de mise à jour).
+const VERSION_APP: &str = env!("CARGO_PKG_VERSION");
+
+/// Informations de mise à jour renvoyées à l'interface.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MajInfo {
+    pub disponible: bool,
+    pub version_actuelle: String,
+    pub derniere: Option<String>,
+}
 
 /// Version du cœur cryptographique (`nex-coffre`). Commande de fumée.
 #[tauri::command]
@@ -123,6 +137,70 @@ pub fn copier_totp(
 #[tauri::command]
 pub fn lancer_audit(etat: State<'_, EtatPartage>) -> Result<RapportAuditApp, ErreurCommande> {
     etat.acceder()?.auditer()
+}
+
+/// Lit les réglages de l'application.
+#[tauri::command]
+pub fn obtenir_reglages() -> Result<Reglages, ErreurCommande> {
+    Reglages::charger()
+}
+
+/// Enregistre les réglages de l'application.
+#[tauri::command]
+pub fn definir_reglages(reglages: Reglages) -> Result<(), ErreurCommande> {
+    reglages.enregistrer()
+}
+
+/// Change le mot de passe maître (après vérification de l'actuel).
+#[tauri::command]
+pub fn changer_mot_de_passe(
+    actuel: String,
+    nouveau: String,
+    etat: State<'_, EtatPartage>,
+) -> Result<(), ErreurCommande> {
+    etat.acceder()?
+        .changer_mot_de_passe(Zeroizing::new(actuel), Zeroizing::new(nouveau))
+}
+
+/// Exporte le coffre chiffré vers `chemin`.
+#[tauri::command]
+pub fn exporter_coffre(chemin: String, etat: State<'_, EtatPartage>) -> Result<(), ErreurCommande> {
+    etat.acceder()?.exporter(std::path::Path::new(&chemin))
+}
+
+/// Importe un coffre chiffré depuis `chemin` (verrouille ensuite).
+#[tauri::command]
+pub fn importer_coffre(chemin: String, etat: State<'_, EtatPartage>) -> Result<(), ErreurCommande> {
+    etat.acceder()?.importer(std::path::Path::new(&chemin))
+}
+
+/// Paramètres KDF du coffre (affichage avancé).
+#[tauri::command]
+pub fn obtenir_kdf(etat: State<'_, EtatPartage>) -> Result<ParametresKdf, ErreurCommande> {
+    etat.acceder()?.parametres_kdf()
+}
+
+/// Vérifie la disponibilité d'une mise à jour (API GitHub, sans secret).
+#[tauri::command]
+pub fn verifier_maj() -> Result<MajInfo, ErreurCommande> {
+    match nex_maj::verifier(VERSION_APP, nex_maj::TIMEOUT_VERIF) {
+        Ok(nex_maj::EtatMaj::AJour { version }) => Ok(MajInfo {
+            disponible: false,
+            version_actuelle: version,
+            derniere: None,
+        }),
+        Ok(nex_maj::EtatMaj::Disponible {
+            version_actuelle,
+            release,
+        }) => Ok(MajInfo {
+            disponible: true,
+            version_actuelle,
+            derniere: Some(release.etiquette),
+        }),
+        Err(_) => Err(ErreurCommande::interne(
+            "Vérification de mise à jour indisponible.",
+        )),
+    }
 }
 
 /// Vérification de fuites en ligne (k-anonymat, opt-in). Appel réseau ; ne

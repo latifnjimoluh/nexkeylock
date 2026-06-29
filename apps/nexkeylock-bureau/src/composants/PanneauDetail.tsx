@@ -4,18 +4,24 @@ import { revelerChamp, copierChamp, copierTotp } from "../lib/pont";
 import { Bouton } from "./Bouton";
 import { AnneauTotp } from "./AnneauTotp";
 
-/** Délai d'effacement du presse-papiers (s). Configurable au Jalon F7. */
-const DELAI_COPIE = 20;
-
 interface Proprietes {
   entree: EntreeApercu;
   onToast: (message: string) => void;
   onModifier: () => void;
   onSupprimer: () => void;
+  /** Délai d'effacement du presse-papiers (s), issu des réglages. */
+  delaiCopie: number;
 }
 
 /** Panneau de détail d'une entrée : champs, révélation, copie, TOTP. */
-export function PanneauDetail({ entree, onToast, onModifier, onSupprimer }: Proprietes) {
+export function PanneauDetail({
+  entree,
+  onToast,
+  onModifier,
+  onSupprimer,
+  delaiCopie,
+}: Proprietes) {
+  const DELAI_COPIE = delaiCopie;
   const [motDePasse, setMotDePasse] = useState<string | null>(null);
 
   // Masque le mot de passe dès qu'on change d'entrée (n'expose rien par défaut).

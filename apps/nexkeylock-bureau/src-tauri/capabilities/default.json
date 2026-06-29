@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Capacités minimales de la fenêtre principale : cœur uniquement, aucun accès shell, système de fichiers arbitraire ou dialogue. Les commandes applicatives (NexKeyLock) sont exposées via le gestionnaire d'invocation.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:default"]
 }

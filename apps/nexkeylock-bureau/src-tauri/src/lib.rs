@@ -8,6 +8,7 @@ mod erreur;
 mod etat;
 mod fuites;
 mod presse_papiers;
+mod reglages;
 
 use etat::EtatPartage;
 
@@ -16,6 +17,7 @@ use etat::EtatPartage;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let resultat = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(EtatPartage::default())
         .invoke_handler(tauri::generate_handler![
             commandes::version_coeur,
@@ -37,6 +39,13 @@ pub fn run() {
             commandes::copier_texte,
             commandes::lancer_audit,
             commandes::verifier_fuites,
+            commandes::obtenir_reglages,
+            commandes::definir_reglages,
+            commandes::changer_mot_de_passe,
+            commandes::exporter_coffre,
+            commandes::importer_coffre,
+            commandes::obtenir_kdf,
+            commandes::verifier_maj,
         ])
         .run(tauri::generate_context!());
 

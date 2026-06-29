@@ -229,3 +229,58 @@ export function lancerAudit(): Promise<RapportAudit> {
 export function verifierFuites(): Promise<ElementFuite[]> {
   return invoke<ElementFuite[]>("verifier_fuites");
 }
+
+/** Réglages de l'application (préférences, aucun secret). */
+export interface Reglages {
+  delaiAutoLockMin: number;
+  delaiPressePapiersS: number;
+}
+
+/** Lit les réglages. */
+export function obtenirReglages(): Promise<Reglages> {
+  return invoke<Reglages>("obtenir_reglages");
+}
+
+/** Enregistre les réglages. */
+export function definirReglages(reglages: Reglages): Promise<void> {
+  return invoke<void>("definir_reglages", { reglages });
+}
+
+/** Change le mot de passe maître (vérifie l'actuel). */
+export function changerMotDePasse(actuel: string, nouveau: string): Promise<void> {
+  return invoke<void>("changer_mot_de_passe", { actuel, nouveau });
+}
+
+/** Exporte le coffre chiffré vers `chemin`. */
+export function exporterCoffre(chemin: string): Promise<void> {
+  return invoke<void>("exporter_coffre", { chemin });
+}
+
+/** Importe un coffre chiffré depuis `chemin` (verrouille ensuite). */
+export function importerCoffre(chemin: string): Promise<void> {
+  return invoke<void>("importer_coffre", { chemin });
+}
+
+/** Paramètres Argon2id du coffre (affichage avancé). */
+export interface ParametresKdf {
+  memoireKio: number;
+  iterations: number;
+  parallelisme: number;
+}
+
+/** Lit les paramètres KDF du coffre. */
+export function obtenirKdf(): Promise<ParametresKdf> {
+  return invoke<ParametresKdf>("obtenir_kdf");
+}
+
+/** Information de mise à jour. */
+export interface MajInfo {
+  disponible: boolean;
+  versionActuelle: string;
+  derniere: string | null;
+}
+
+/** Vérifie la disponibilité d'une mise à jour. */
+export function verifierMaj(): Promise<MajInfo> {
+  return invoke<MajInfo>("verifier_maj");
+}

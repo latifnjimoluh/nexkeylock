@@ -9,14 +9,16 @@ import { Modale } from "../composants/Modale";
 import { Toast } from "../composants/Toast";
 import { EcranGenerateur } from "./EcranGenerateur";
 import { EcranTableauBord } from "./EcranTableauBord";
+import { EcranReglages } from "./EcranReglages";
 import { useBoutique } from "../lib/boutique";
-import { listerEntrees, supprimerEntree, type EntreeApercu } from "../lib/pont";
+import { listerEntrees, obtenirReglages, supprimerEntree, type EntreeApercu } from "../lib/pont";
 
-type Vue = "coffre" | "generateur" | "tableau";
+type Vue = "coffre" | "generateur" | "tableau" | "reglages";
 
 /** Vue principale : barre latérale, liste recherchable, panneau de détail. */
 export function EcranCoffre() {
   const verrouiller = useBoutique((b) => b.verrouiller);
+  const charger = useBoutique((b) => b.charger);
 
   const [categorie, setCategorie] = useState<Categorie>("tout");
   const [recherche, setRecherche] = useState("");
@@ -26,6 +28,13 @@ export function EcranCoffre() {
   const [toast, setToast] = useState<string | null>(null);
   const [rechargement, setRechargement] = useState(0);
   const [vue, setVue] = useState<Vue>("coffre");
+  const [delaiCopie, setDelaiCopie] = useState(20);
+
+  useEffect(() => {
+    obtenirReglages()
+      .then((r) => setDelaiCopie(r.delaiPressePapiersS))
+      .catch(() => undefined);
+  }, []);
 
   // Formulaire (création/édition) et confirmation de suppression.
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
@@ -96,6 +105,9 @@ export function EcranCoffre() {
               <Bouton variante="secondaire" onClick={() => setVue("generateur")}>
                 Générateur
               </Bouton>
+              <Bouton variante="secondaire" onClick={() => setVue("reglages")}>
+                Réglages
+              </Bouton>
             </>
           ) : (
             <Bouton variante="secondaire" onClick={() => setVue("coffre")}>
@@ -111,7 +123,7 @@ export function EcranCoffre() {
 
       {vue === "generateur" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <EcranGenerateur onToast={setToast} />
+          <EcranGenerateur onToast={setToast} delaiCopie={delaiCopie} />
         </div>
       ) : vue === "tableau" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -120,6 +132,16 @@ export function EcranCoffre() {
             onOuvrirEntree={(id) => {
               setCategorie("tout");
               setIdSelectionne(id);
+              setVue("coffre");
+            }}
+          />
+        </div>
+      ) : vue === "reglages" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <EcranReglages
+            onToast={setToast}
+            onCoffreChange={() => {
+              void charger();
               setVue("coffre");
             }}
           />
@@ -148,6 +170,7 @@ export function EcranCoffre() {
                 onToast={setToast}
                 onModifier={() => ouvrirEdition(selection)}
                 onSupprimer={() => setASupprimer(selection)}
+                delaiCopie={delaiCopie}
               />
             ) : (
               <div className="flex h-full items-center justify-center p-8 text-center text-texte-doux">

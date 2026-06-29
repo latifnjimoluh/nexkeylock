@@ -3,7 +3,7 @@
 //! Le `CoffreDeverrouille` (DEK + contenu en clair) vit ici, protégé par un
 //! `Mutex`. L'interface ne reçoit que des [`Apercu`] (métadonnées sans secret).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use nex_coffre::totp::{
@@ -97,6 +97,15 @@ pub struct ElementFuite {
     pub id: String,
     pub nom: String,
     pub occurrences: u64,
+}
+
+/// Paramètres Argon2id du coffre (lecture seule, affichage « avancé »).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParametresKdf {
+    pub memoire_kio: u32,
+    pub iterations: u32,
+    pub parallelisme: u32,
 }
 
 /// Données d'entrée reçues de l'interface (création ou modification).
@@ -355,6 +364,64 @@ impl EtatCoffre {
         Ok(())
     }
 
+    /// Change le mot de passe maître après avoir **vérifié l'actuel** (réemballe
+    /// uniquement la DEK ; le corps n'est pas rechiffré).
+    pub fn changer_mot_de_passe(
+        &mut self,
+        actuel: Zeroizing<String>,
+        nouveau: Zeroizing<String>,
+    ) -> Result<(), ErreurCommande> {
+        // Vérifie l'actuel en rouvrant le fichier (échec sûr si incorrect).
+        let verrou =
+            CoffreVerrouille::ouvrir(&self.chemin).map_err(|_| ErreurCommande::introuvable())?;
+        verrou.deverrouiller(actuel.as_bytes())?;
+        let coffre = self
+            .coffre
+            .as_mut()
+            .ok_or_else(ErreurCommande::verrouille)?;
+        coffre.changer_mot_de_passe(nouveau.as_bytes())?;
+        Ok(())
+    }
+
+    /// Exporte le coffre **chiffré** (copie du fichier) vers `dest`.
+    pub fn exporter(&self, dest: &Path) -> Result<(), ErreurCommande> {
+        if !self.chemin.exists() {
+            return Err(ErreurCommande::introuvable());
+        }
+        std::fs::copy(&self.chemin, dest)
+            .map_err(|_| ErreurCommande::interne("Export impossible."))?;
+        Ok(())
+    }
+
+    /// Importe un coffre chiffré depuis `source` (validé), puis verrouille :
+    /// l'utilisateur devra le déverrouiller avec le mot de passe du coffre importé.
+    pub fn importer(&mut self, source: &Path) -> Result<(), ErreurCommande> {
+        CoffreVerrouille::ouvrir(source)
+            .map_err(|_| ErreurCommande::interne("Fichier invalide."))?;
+        if let Some(parent) = self.chemin.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|_| ErreurCommande::interne("Dossier inaccessible."))?;
+            }
+        }
+        std::fs::copy(source, &self.chemin)
+            .map_err(|_| ErreurCommande::interne("Import impossible."))?;
+        self.coffre = None; // verrouille : le coffre importé a son propre mot de passe
+        Ok(())
+    }
+
+    /// Paramètres KDF du coffre (lus dans l'en-tête authentifié, sans déverrouiller).
+    pub fn parametres_kdf(&self) -> Result<ParametresKdf, ErreurCommande> {
+        let verrou =
+            CoffreVerrouille::ouvrir(&self.chemin).map_err(|_| ErreurCommande::introuvable())?;
+        let e = verrou.entete();
+        Ok(ParametresKdf {
+            memoire_kio: e.kdf_m_kio,
+            iterations: e.kdf_t,
+            parallelisme: e.kdf_p,
+        })
+    }
+
     /// Métadonnées courantes (aucun secret).
     pub fn apercu(&self) -> Apercu {
         match &self.coffre {
@@ -602,6 +669,59 @@ mod tests {
         assert_eq!(super::score_sante(10, 0, 0, 0), 100);
         // Tout faible : forte pénalité, score réduit.
         assert!(super::score_sante(10, 10, 0, 0) <= 60);
+    }
+
+    #[test]
+    fn changement_mot_de_passe_verifie_l_actuel() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("ancien".into())).unwrap();
+
+        // Mauvais actuel : refus.
+        let e = etat
+            .changer_mot_de_passe(
+                Zeroizing::new("faux".into()),
+                Zeroizing::new("nouveau".into()),
+            )
+            .unwrap_err();
+        assert_eq!(e.code, "mot_de_passe");
+
+        // Bon actuel : succès, et seul le nouveau déverrouille ensuite.
+        etat.changer_mot_de_passe(
+            Zeroizing::new("ancien".into()),
+            Zeroizing::new("nouveau".into()),
+        )
+        .unwrap();
+        etat.verrouiller();
+        assert!(etat.deverrouiller(Zeroizing::new("ancien".into())).is_err());
+        assert!(etat.deverrouiller(Zeroizing::new("nouveau".into())).is_ok());
+    }
+
+    #[test]
+    fn export_puis_import() {
+        let (dossier, mut source) = etat_temporaire();
+        source.creer(Zeroizing::new("maitre".into())).unwrap();
+        let chemin_export = dossier.path().join("export.vault");
+        source.exporter(&chemin_export).unwrap();
+        assert!(chemin_export.exists());
+
+        // Nouveau coffre cible, vide, qui importe l'export.
+        let cible_chemin = dossier.path().join("cible.vault");
+        let mut cible = EtatCoffre::avec_chemin(cible_chemin);
+        cible.importer(&chemin_export).unwrap();
+        assert!(cible.coffre_existe());
+        assert!(cible.apercu().verrouille); // verrouillé après import
+        assert!(cible.deverrouiller(Zeroizing::new("maitre".into())).is_ok());
+    }
+
+    #[test]
+    fn parametres_kdf_lisibles() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+        let p = etat.parametres_kdf().unwrap();
+        // KDF rapide en test : m=8 Kio, t=1, p=1.
+        assert_eq!(p.memoire_kio, 8);
+        assert_eq!(p.iterations, 1);
+        assert_eq!(p.parallelisme, 1);
     }
 
     #[test]

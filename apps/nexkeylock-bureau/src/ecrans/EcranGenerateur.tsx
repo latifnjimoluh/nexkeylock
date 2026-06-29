@@ -1,19 +1,18 @@
 import { GenerateurMotDePasse } from "../composants/GenerateurMotDePasse";
 import { copierTexte } from "../lib/pont";
 
-/** Délai d'effacement du presse-papiers (s). Configurable au Jalon F7. */
-const DELAI_COPIE = 20;
-
 interface Proprietes {
   onToast: (message: string) => void;
+  /** Délai d'effacement du presse-papiers (s), issu des réglages. */
+  delaiCopie: number;
 }
 
 /** Écran autonome de génération de mots de passe / phrases de passe. */
-export function EcranGenerateur({ onToast }: Proprietes) {
+export function EcranGenerateur({ onToast, delaiCopie }: Proprietes) {
   const copier = async (valeur: string) => {
     try {
-      await copierTexte(valeur, DELAI_COPIE);
-      onToast(`Copié — effacement dans ${DELAI_COPIE} s.`);
+      await copierTexte(valeur, delaiCopie);
+      onToast(`Copié — effacement dans ${delaiCopie} s.`);
     } catch {
       onToast("Copie impossible.");
     }
