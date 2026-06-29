@@ -38,8 +38,26 @@ cargo fmt --check
 ## Build de distribution
 
 ```sh
-pnpm tauri build    # bundles Windows / macOS / Linux dans src-tauri/target/release/bundle
+pnpm tauri build
 ```
+
+Les bundles sont produits dans `src-tauri/target/release/bundle/` :
+
+| Plateforme | Sorties | Construit sur |
+|------------|---------|---------------|
+| **Windows** | `nsis/*-setup.exe` (et `msi/*.msi` si WiX présent) | Windows |
+| **macOS** | `dmg/*.dmg`, `macos/*.app` | macOS |
+| **Linux** | `appimage/*.AppImage`, `deb/*.deb`, `rpm/*.rpm` | Linux |
+
+Tauri **ne fait pas de compilation croisée** des bundles : chaque OS se
+construit sur lui-même (poste dédié ou CI matricielle). La première exécution
+sous Windows télécharge l'outil NSIS automatiquement.
+
+> Les exécutables ne sont pas signés. Comme pour la CLI, prévoir un certificat
+> Authenticode (Windows) / notarisation (macOS) pour une distribution publique
+> (voir `../../packaging/`).
+
+Pour produire un binaire sans empaqueter : `pnpm tauri build --no-bundle`.
 
 ## Architecture
 
