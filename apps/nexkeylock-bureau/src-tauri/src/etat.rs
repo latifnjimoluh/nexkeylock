@@ -6,9 +6,12 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use nex_coffre::totp::{secret_depuis_base32, totp, CHIFFRES_DEFAUT, PAS_DEFAUT};
+use nex_coffre::totp::{
+    secret_base32_depuis_otpauth, secret_depuis_base32, totp, CHIFFRES_DEFAUT, PAS_DEFAUT,
+};
 use nex_coffre::{
-    maintenant_unix, CoffreDeverrouille, CoffreVerrouille, Entree, ParametresArgon2, TypeEntree,
+    maintenant_unix, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille, Entree,
+    ParametresArgon2, TypeEntree,
 };
 use zeroize::Zeroizing;
 
@@ -66,6 +69,24 @@ impl EntreeApercu {
 pub struct CodeTotp {
     pub code: String,
     pub secondes_restantes: u64,
+}
+
+/// Données d'entrée reçues de l'interface (création ou modification).
+///
+/// À la **modification**, `mot_de_passe`/`totp` à `None` ou vides laissent le
+/// champ existant **inchangé** (on ne renvoie jamais le secret à l'interface).
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DonneesEntree {
+    pub categorie: String,
+    pub nom: String,
+    pub nom_utilisateur: Option<String>,
+    #[serde(default)]
+    pub uris: Vec<String>,
+    pub mot_de_passe: Option<String>,
+    /// Secret TOTP saisi : Base32 brut ou URI `otpauth://`.
+    pub totp: Option<String>,
+    pub notes: Option<String>,
 }
 
 /// État du coffre : chemin du fichier + coffre déverrouillé éventuel.
@@ -187,14 +208,63 @@ impl EtatCoffre {
         })
     }
 
-    /// Insère une entrée (réservé aux tests : l'ajout réel arrive au Jalon F4).
-    #[cfg(test)]
-    pub fn inserer_pour_test(&mut self, entree: Entree) -> Result<(), ErreurCommande> {
+    /// Ajoute une entrée et renvoie son identifiant.
+    pub fn ajouter(&mut self, d: DonneesEntree) -> Result<String, ErreurCommande> {
+        let totp_norm = normaliser_totp_optionnel(d.totp.as_deref())?;
         let coffre = self
             .coffre
             .as_mut()
             .ok_or_else(ErreurCommande::verrouille)?;
-        coffre.ajouter(entree);
+        let id = nouvel_identifiant().map_err(ErreurCommande::from)?;
+        let mut e = Entree::connexion(&id, &d.nom, maintenant_unix());
+        e.type_entree = type_depuis(&d.categorie);
+        e.nom_utilisateur = non_vide(d.nom_utilisateur);
+        e.uris = d.uris;
+        e.mot_de_passe = non_vide(d.mot_de_passe);
+        e.secret_totp = totp_norm;
+        e.notes = non_vide(d.notes);
+        coffre.ajouter(e);
+        coffre.enregistrer()?;
+        Ok(id)
+    }
+
+    /// Modifie une entrée existante. Les secrets vides/absents restent inchangés.
+    pub fn modifier(&mut self, id: &str, d: DonneesEntree) -> Result<(), ErreurCommande> {
+        let totp_norm = normaliser_totp_optionnel(d.totp.as_deref())?;
+        let coffre = self
+            .coffre
+            .as_mut()
+            .ok_or_else(ErreurCommande::verrouille)?;
+        {
+            let e = coffre
+                .modifier(id)
+                .ok_or_else(|| ErreurCommande::interne("Entrée introuvable."))?;
+            e.type_entree = type_depuis(&d.categorie);
+            e.nom = d.nom;
+            e.nom_utilisateur = non_vide(d.nom_utilisateur);
+            e.uris = d.uris;
+            e.notes = non_vide(d.notes);
+            e.maj_le = maintenant_unix();
+            if let Some(mdp) = non_vide(d.mot_de_passe) {
+                e.mot_de_passe = Some(mdp);
+            }
+            if let Some(t) = totp_norm {
+                e.secret_totp = Some(t);
+            }
+        }
+        coffre.enregistrer()?;
+        Ok(())
+    }
+
+    /// Supprime une entrée par identifiant.
+    pub fn supprimer(&mut self, id: &str) -> Result<(), ErreurCommande> {
+        let coffre = self
+            .coffre
+            .as_mut()
+            .ok_or_else(ErreurCommande::verrouille)?;
+        if !coffre.supprimer(id) {
+            return Err(ErreurCommande::interne("Entrée introuvable."));
+        }
         coffre.enregistrer()?;
         Ok(())
     }
@@ -234,6 +304,38 @@ impl Default for EtatPartage {
     fn default() -> Self {
         EtatPartage(Mutex::new(EtatCoffre::par_defaut()))
     }
+}
+
+/// Réduit un champ optionnel à `None` s'il est vide ou ne contient que des
+/// espaces (évite de stocker des chaînes vides).
+fn non_vide(valeur: Option<String>) -> Option<String> {
+    valeur.filter(|s| !s.trim().is_empty())
+}
+
+/// Convertit une catégorie d'interface en [`TypeEntree`].
+fn type_depuis(categorie: &str) -> TypeEntree {
+    match categorie {
+        "note" => TypeEntree::NoteSecurisee,
+        "secret" => TypeEntree::SecretGenerique,
+        _ => TypeEntree::Connexion,
+    }
+}
+
+/// Normalise un secret TOTP saisi (Base32 brut ou URI `otpauth://`) en Base32,
+/// ou `None` si rien n'est fourni.
+fn normaliser_totp_optionnel(saisie: Option<&str>) -> Result<Option<String>, ErreurCommande> {
+    let Some(s) = saisie.map(str::trim).filter(|s| !s.is_empty()) else {
+        return Ok(None);
+    };
+    let base32 = if s.starts_with("otpauth://") {
+        secret_base32_depuis_otpauth(s)
+            .map_err(|_| ErreurCommande::interne("Secret TOTP (otpauth) invalide."))?
+    } else {
+        secret_depuis_base32(s)
+            .map_err(|_| ErreurCommande::interne("Secret TOTP Base32 invalide."))?;
+        s.to_string()
+    };
+    Ok(Some(base32))
 }
 
 /// Paramètres Argon2id : allégés si `NEXKEYLOCK_KDF_RAPIDE` est défini (tests),
@@ -323,16 +425,23 @@ mod tests {
         assert_eq!(e.code, "introuvable");
     }
 
+    fn donnees(nom: &str) -> DonneesEntree {
+        DonneesEntree {
+            categorie: "connexion".into(),
+            nom: nom.into(),
+            nom_utilisateur: Some("moi@exemple.fr".into()),
+            uris: vec!["https://exemple.fr".into()],
+            mot_de_passe: Some("s3cr3t".into()),
+            totp: Some("JBSWY3DPEHPK3PXP".into()),
+            notes: None,
+        }
+    }
+
     #[test]
     fn lister_rechercher_reveler_et_totp() {
         let (_d, mut etat) = etat_temporaire();
         etat.creer(Zeroizing::new("maitre".into())).unwrap();
-
-        let mut e = Entree::connexion("id-1", "Banque", 0);
-        e.nom_utilisateur = Some("moi@exemple.fr".into());
-        e.mot_de_passe = Some("s3cr3t".into());
-        e.secret_totp = Some("JBSWY3DPEHPK3PXP".into());
-        etat.inserer_pour_test(e).unwrap();
+        let id = etat.ajouter(donnees("Banque")).unwrap();
 
         let liste = etat.lister(None).unwrap();
         assert_eq!(liste.len(), 1);
@@ -343,12 +452,43 @@ mod tests {
         assert_eq!(etat.lister(Some("banq")).unwrap().len(), 1);
         assert_eq!(etat.lister(Some("introuvable")).unwrap().len(), 0);
 
-        assert_eq!(etat.reveler("id-1", "mot_de_passe").unwrap(), "s3cr3t");
-        assert!(etat.reveler("id-1", "champ-inconnu").is_err());
+        assert_eq!(etat.reveler(&id, "mot_de_passe").unwrap(), "s3cr3t");
+        assert!(etat.reveler(&id, "champ-inconnu").is_err());
 
-        let t = etat.code_totp("id-1").unwrap();
+        let t = etat.code_totp(&id).unwrap();
         assert_eq!(t.code.len(), 6);
         assert!(t.secondes_restantes >= 1 && t.secondes_restantes <= 30);
+    }
+
+    #[test]
+    fn ajout_modification_suppression() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+        let id = etat.ajouter(donnees("Banque")).unwrap();
+
+        // Modification : nouveau nom, mot de passe vide => inchangé.
+        let mut maj = donnees("Banque renommée");
+        maj.mot_de_passe = None;
+        etat.modifier(&id, maj).unwrap();
+        let liste = etat.lister(None).unwrap();
+        assert_eq!(liste[0].nom, "Banque renommée");
+        assert_eq!(etat.reveler(&id, "mot_de_passe").unwrap(), "s3cr3t");
+
+        // Suppression.
+        etat.supprimer(&id).unwrap();
+        assert_eq!(etat.lister(None).unwrap().len(), 0);
+        assert!(etat.supprimer(&id).is_err());
+    }
+
+    #[test]
+    fn totp_otpauth_normalise() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+        let mut d = donnees("Compte");
+        d.totp = Some("otpauth://totp/Compte?secret=JBSWY3DPEHPK3PXP&issuer=X".into());
+        let id = etat.ajouter(d).unwrap();
+        // Le code TOTP se calcule => le secret a bien été normalisé et stocké.
+        assert_eq!(etat.code_totp(&id).unwrap().code.len(), 6);
     }
 
     #[test]

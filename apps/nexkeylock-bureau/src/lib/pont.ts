@@ -142,3 +142,53 @@ export async function obtenirTotp(id: string): Promise<CodeTotp> {
 export function copierTotp(id: string, delaiS: number): Promise<void> {
   return invoke<void>("copier_totp", { id, delaiS });
 }
+
+/** Données d'une entrée envoyées au backend (création/modification). */
+export interface DonneesEntree {
+  categorie: string;
+  nom: string;
+  nomUtilisateur: string | null;
+  uris: string[];
+  /** À la modification : vide/absent => mot de passe inchangé. */
+  motDePasse: string | null;
+  /** Base32 brut ou URI otpauth:// ; vide/absent => inchangé. */
+  totp: string | null;
+  notes: string | null;
+}
+
+/** Ajoute une entrée ; renvoie son identifiant. */
+export function ajouterEntree(donnees: DonneesEntree): Promise<string> {
+  return invoke<string>("ajouter_entree", { donnees });
+}
+
+/** Modifie une entrée existante. */
+export function modifierEntree(id: string, donnees: DonneesEntree): Promise<void> {
+  return invoke<void>("modifier_entree", { id, donnees });
+}
+
+/** Supprime une entrée. */
+export function supprimerEntree(id: string): Promise<void> {
+  return invoke<void>("supprimer_entree", { id });
+}
+
+/** Options de génération (mots renseigné => phrase de passe). */
+export interface OptionsGenerateur {
+  mots: number | null;
+  longueur: number;
+  minuscules: boolean;
+  majuscules: boolean;
+  chiffres: boolean;
+  symboles: boolean;
+  exclureAmbigus: boolean;
+}
+
+/** Mot de passe généré et entropie estimée. */
+export interface MotDePasseGenere {
+  valeur: string;
+  entropieBits: number;
+}
+
+/** Génère un mot de passe ou une phrase de passe (côté cœur). */
+export function genererMotDePasse(options: OptionsGenerateur): Promise<MotDePasseGenere> {
+  return invoke<MotDePasseGenere>("generer_mot_de_passe", { options });
+}

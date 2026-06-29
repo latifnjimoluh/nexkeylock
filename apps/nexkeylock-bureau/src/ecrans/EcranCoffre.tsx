@@ -4,9 +4,11 @@ import { Bouton } from "../composants/Bouton";
 import { BarreLaterale, type Categorie } from "../composants/BarreLaterale";
 import { ListeEntrees } from "../composants/ListeEntrees";
 import { PanneauDetail } from "../composants/PanneauDetail";
+import { FormulaireEntree } from "../composants/FormulaireEntree";
+import { Modale } from "../composants/Modale";
 import { Toast } from "../composants/Toast";
 import { useBoutique } from "../lib/boutique";
-import { listerEntrees, type EntreeApercu } from "../lib/pont";
+import { listerEntrees, supprimerEntree, type EntreeApercu } from "../lib/pont";
 
 /** Vue principale : barre latérale, liste recherchable, panneau de détail. */
 export function EcranCoffre() {
@@ -18,6 +20,12 @@ export function EcranCoffre() {
   const [chargement, setChargement] = useState(true);
   const [idSelectionne, setIdSelectionne] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [rechargement, setRechargement] = useState(0);
+
+  // Formulaire (création/édition) et confirmation de suppression.
+  const [formulaireOuvert, setFormulaireOuvert] = useState(false);
+  const [formulaireInitiale, setFormulaireInitiale] = useState<EntreeApercu | null>(null);
+  const [aSupprimer, setASupprimer] = useState<EntreeApercu | null>(null);
 
   useEffect(() => {
     let actif = true;
@@ -26,13 +34,18 @@ export function EcranCoffre() {
       .then((liste) => {
         if (actif) setEntrees(liste);
       })
+      .catch(() => {
+        if (actif) setEntrees([]);
+      })
       .finally(() => {
         if (actif) setChargement(false);
       });
     return () => {
       actif = false;
     };
-  }, [recherche]);
+  }, [recherche, rechargement]);
+
+  const recharger = () => setRechargement((n) => n + 1);
 
   const filtrees = useMemo(
     () => (categorie === "tout" ? entrees : entrees.filter((e) => e.categorie === categorie)),
@@ -41,11 +54,35 @@ export function EcranCoffre() {
 
   const selection = filtrees.find((e) => e.id === idSelectionne) ?? null;
 
+  const ouvrirCreation = () => {
+    setFormulaireInitiale(null);
+    setFormulaireOuvert(true);
+  };
+  const ouvrirEdition = (e: EntreeApercu) => {
+    setFormulaireInitiale(e);
+    setFormulaireOuvert(true);
+  };
+
+  const confirmerSuppression = async () => {
+    if (!aSupprimer) return;
+    try {
+      await supprimerEntree(aSupprimer.id);
+      if (idSelectionne === aSupprimer.id) setIdSelectionne(null);
+      setToast("Entrée supprimée.");
+      recharger();
+    } catch {
+      setToast("Suppression impossible.");
+    } finally {
+      setASupprimer(null);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-bordure px-4 py-2">
         <span className="font-semibold">NexKeyLock</span>
         <div className="flex items-center gap-2">
+          <Bouton onClick={ouvrirCreation}>+ Ajouter</Bouton>
           <SelecteurTheme />
           <Bouton variante="secondaire" onClick={() => void verrouiller()}>
             Verrouiller
@@ -71,7 +108,12 @@ export function EcranCoffre() {
 
         <div className="hidden min-h-0 md:block">
           {selection ? (
-            <PanneauDetail entree={selection} onToast={setToast} />
+            <PanneauDetail
+              entree={selection}
+              onToast={setToast}
+              onModifier={() => ouvrirEdition(selection)}
+              onSupprimer={() => setASupprimer(selection)}
+            />
           ) : (
             <div className="flex h-full items-center justify-center p-8 text-center text-texte-doux">
               Sélectionnez une entrée pour afficher ses détails.
@@ -79,6 +121,30 @@ export function EcranCoffre() {
           )}
         </div>
       </div>
+
+      {formulaireOuvert && (
+        <FormulaireEntree
+          initiale={formulaireInitiale}
+          onFerme={() => setFormulaireOuvert(false)}
+          onEnregistre={recharger}
+        />
+      )}
+
+      {aSupprimer && (
+        <Modale titre="Supprimer l'entrée" onFermer={() => setASupprimer(null)}>
+          <p className="mb-4 text-texte">
+            Supprimer « {aSupprimer.nom} » ? Cette action est définitive.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Bouton variante="secondaire" onClick={() => setASupprimer(null)}>
+              Annuler
+            </Bouton>
+            <Bouton variante="danger" onClick={() => void confirmerSuppression()}>
+              Supprimer
+            </Bouton>
+          </div>
+        </Modale>
+      )}
 
       {toast && <Toast message={toast} onFermer={() => setToast(null)} />}
     </div>

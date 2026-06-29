@@ -4,11 +4,15 @@
 //! via [`EtatPartage`] et ne renvoie jamais de secret non sollicité. Le mot de
 //! passe maître reçu est immédiatement enveloppé dans `Zeroizing`.
 
+use nex_coffre::generateur::{
+    entropie_bits, entropie_phrase, generer_mot_de_passe as gen_mdp, generer_phrase as gen_phrase,
+    OptionsMotDePasse,
+};
 use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
-use crate::etat::{Apercu, CodeTotp, EntreeApercu, EtatPartage};
+use crate::etat::{Apercu, CodeTotp, DonneesEntree, EntreeApercu, EtatPartage};
 use crate::presse_papiers;
 
 /// Version du cœur cryptographique (`nex-coffre`). Commande de fumée.
@@ -111,4 +115,80 @@ pub fn copier_totp(
 ) -> Result<(), ErreurCommande> {
     let code = etat.acceder()?.code_totp(&id)?.code;
     presse_papiers::copier_avec_effacement(code, delai_s)
+}
+
+/// Ajoute une entrée et renvoie son identifiant.
+#[tauri::command]
+pub fn ajouter_entree(
+    donnees: DonneesEntree,
+    etat: State<'_, EtatPartage>,
+) -> Result<String, ErreurCommande> {
+    etat.acceder()?.ajouter(donnees)
+}
+
+/// Modifie une entrée existante.
+#[tauri::command]
+pub fn modifier_entree(
+    id: String,
+    donnees: DonneesEntree,
+    etat: State<'_, EtatPartage>,
+) -> Result<(), ErreurCommande> {
+    etat.acceder()?.modifier(&id, donnees)
+}
+
+/// Supprime une entrée.
+#[tauri::command]
+pub fn supprimer_entree(id: String, etat: State<'_, EtatPartage>) -> Result<(), ErreurCommande> {
+    etat.acceder()?.supprimer(&id)
+}
+
+/// Options de génération reçues de l'interface.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionsGenerateur {
+    /// Si renseigné, génère une phrase de passe de N mots (diceware).
+    pub mots: Option<usize>,
+    pub longueur: usize,
+    pub minuscules: bool,
+    pub majuscules: bool,
+    pub chiffres: bool,
+    pub symboles: bool,
+    pub exclure_ambigus: bool,
+}
+
+/// Mot de passe généré et son entropie estimée (bits).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MotDePasseGenere {
+    pub valeur: String,
+    pub entropie_bits: u32,
+}
+
+/// Génère un mot de passe ou une phrase de passe (délègue au cœur).
+#[tauri::command]
+pub fn generer_mot_de_passe(
+    options: OptionsGenerateur,
+) -> Result<MotDePasseGenere, ErreurCommande> {
+    if let Some(n) = options.mots {
+        let phrase = gen_phrase(n, '-')
+            .map_err(|_| ErreurCommande::interne("Options de génération invalides."))?;
+        return Ok(MotDePasseGenere {
+            valeur: phrase.to_string(),
+            entropie_bits: entropie_phrase(n).round() as u32,
+        });
+    }
+    let opt = OptionsMotDePasse {
+        longueur: options.longueur,
+        minuscules: options.minuscules,
+        majuscules: options.majuscules,
+        chiffres: options.chiffres,
+        symboles: options.symboles,
+        exclure_ambigus: options.exclure_ambigus,
+    };
+    let mdp =
+        gen_mdp(&opt).map_err(|_| ErreurCommande::interne("Options de génération invalides."))?;
+    Ok(MotDePasseGenere {
+        valeur: mdp.to_string(),
+        entropie_bits: entropie_bits(opt.jeu().len(), opt.longueur).round() as u32,
+    })
 }

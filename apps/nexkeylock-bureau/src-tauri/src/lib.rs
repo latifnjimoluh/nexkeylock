@@ -29,6 +29,10 @@ pub fn run() {
             commandes::copier_champ,
             commandes::obtenir_totp,
             commandes::copier_totp,
+            commandes::ajouter_entree,
+            commandes::modifier_entree,
+            commandes::supprimer_entree,
+            commandes::generer_mot_de_passe,
         ])
         .run(tauri::generate_context!());
 

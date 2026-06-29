@@ -10,10 +10,12 @@ const DELAI_COPIE = 20;
 interface Proprietes {
   entree: EntreeApercu;
   onToast: (message: string) => void;
+  onModifier: () => void;
+  onSupprimer: () => void;
 }
 
 /** Panneau de détail d'une entrée : champs, révélation, copie, TOTP. */
-export function PanneauDetail({ entree, onToast }: Proprietes) {
+export function PanneauDetail({ entree, onToast, onModifier, onSupprimer }: Proprietes) {
   const [motDePasse, setMotDePasse] = useState<string | null>(null);
 
   // Masque le mot de passe dès qu'on change d'entrée (n'expose rien par défaut).
@@ -53,9 +55,19 @@ export function PanneauDetail({ entree, onToast }: Proprietes) {
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-y-auto p-6">
-      <header>
-        <h2 className="text-xl font-semibold text-texte">{entree.nom}</h2>
-        <p className="text-sm capitalize text-texte-doux">{entree.categorie}</p>
+      <header className="flex items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xl font-semibold text-texte">{entree.nom}</h2>
+          <p className="text-sm capitalize text-texte-doux">{entree.categorie}</p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Bouton variante="secondaire" onClick={onModifier}>
+            Modifier
+          </Bouton>
+          <Bouton variante="danger" onClick={onSupprimer}>
+            Supprimer
+          </Bouton>
+        </div>
       </header>
 
       {entree.nomUtilisateur && (

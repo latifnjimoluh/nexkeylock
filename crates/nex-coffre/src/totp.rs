@@ -89,12 +89,70 @@ pub fn secret_depuis_base32(entree: &str) -> Result<Vec<u8>, ErreurCoffre> {
     Ok(sortie)
 }
 
+/// Extrait le secret Base32 d'une URI `otpauth://totp/Label?secret=…` (format
+/// des QR codes d'authentification). Renvoie le secret tel quel (Base32), après
+/// avoir vérifié qu'il est décodable.
+///
+/// # Erreurs
+/// [`ErreurCoffre::Totp`] si l'URI n'est pas une URI TOTP ou ne contient pas de
+/// secret ; [`ErreurCoffre::Base32Invalide`] si le secret n'est pas du Base32.
+pub fn secret_base32_depuis_otpauth(uri: &str) -> Result<String, ErreurCoffre> {
+    let reste = uri
+        .strip_prefix("otpauth://totp/")
+        .ok_or(ErreurCoffre::Totp)?;
+    let requete = reste.split('?').nth(1).ok_or(ErreurCoffre::Totp)?;
+    let secret = requete
+        .split('&')
+        .find_map(|p| p.strip_prefix("secret="))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or(ErreurCoffre::Totp)?;
+    // Valide que le secret est bien du Base32 décodable.
+    secret_depuis_base32(secret)?;
+    Ok(secret.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// Graine SHA-1 de la RFC 6238 : ASCII « 12345678901234567890 ».
     const GRAINE: &[u8] = b"12345678901234567890";
+
+    #[test]
+    fn otpauth_extrait_le_secret() {
+        let uri = "otpauth://totp/Exemple:moi@exemple.fr?secret=MZXW6YTBOI&issuer=Exemple&digits=6&period=30";
+        assert_eq!(secret_base32_depuis_otpauth(uri).unwrap(), "MZXW6YTBOI");
+        // Le secret extrait reproduit bien « foobar » une fois décodé.
+        let s = secret_base32_depuis_otpauth(uri).unwrap();
+        assert_eq!(secret_depuis_base32(&s).unwrap(), b"foobar");
+    }
+
+    #[test]
+    fn otpauth_secret_en_dernier_parametre() {
+        let uri = "otpauth://totp/Compte?issuer=X&digits=6&secret=MZXW6YTBOI";
+        assert_eq!(secret_base32_depuis_otpauth(uri).unwrap(), "MZXW6YTBOI");
+    }
+
+    #[test]
+    fn otpauth_non_totp_rejete() {
+        assert!(matches!(
+            secret_base32_depuis_otpauth("https://exemple.fr?secret=MZXW6YTBOI"),
+            Err(ErreurCoffre::Totp)
+        ));
+        assert!(matches!(
+            secret_base32_depuis_otpauth("otpauth://totp/Compte"),
+            Err(ErreurCoffre::Totp)
+        ));
+    }
+
+    #[test]
+    fn otpauth_secret_invalide_rejete() {
+        assert!(matches!(
+            secret_base32_depuis_otpauth("otpauth://totp/Compte?secret=0189!"),
+            Err(ErreurCoffre::Base32Invalide)
+        ));
+    }
 
     #[test]
     fn vecteurs_officiels_rfc6238() {
