@@ -6,6 +6,7 @@
 mod commandes;
 mod erreur;
 mod etat;
+mod fuites;
 mod presse_papiers;
 
 use etat::EtatPartage;
@@ -34,6 +35,8 @@ pub fn run() {
             commandes::supprimer_entree,
             commandes::generer_mot_de_passe,
             commandes::copier_texte,
+            commandes::lancer_audit,
+            commandes::verifier_fuites,
         ])
         .run(tauri::generate_context!());
 

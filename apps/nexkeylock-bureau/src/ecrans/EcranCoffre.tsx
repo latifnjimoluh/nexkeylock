@@ -8,10 +8,11 @@ import { FormulaireEntree } from "../composants/FormulaireEntree";
 import { Modale } from "../composants/Modale";
 import { Toast } from "../composants/Toast";
 import { EcranGenerateur } from "./EcranGenerateur";
+import { EcranTableauBord } from "./EcranTableauBord";
 import { useBoutique } from "../lib/boutique";
 import { listerEntrees, supprimerEntree, type EntreeApercu } from "../lib/pont";
 
-type Vue = "coffre" | "generateur";
+type Vue = "coffre" | "generateur" | "tableau";
 
 /** Vue principale : barre latérale, liste recherchable, panneau de détail. */
 export function EcranCoffre() {
@@ -89,6 +90,9 @@ export function EcranCoffre() {
           {vue === "coffre" ? (
             <>
               <Bouton onClick={ouvrirCreation}>+ Ajouter</Bouton>
+              <Bouton variante="secondaire" onClick={() => setVue("tableau")}>
+                Tableau
+              </Bouton>
               <Bouton variante="secondaire" onClick={() => setVue("generateur")}>
                 Générateur
               </Bouton>
@@ -108,6 +112,17 @@ export function EcranCoffre() {
       {vue === "generateur" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <EcranGenerateur onToast={setToast} />
+        </div>
+      ) : vue === "tableau" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <EcranTableauBord
+            onToast={setToast}
+            onOuvrirEntree={(id) => {
+              setCategorie("tout");
+              setIdSelectionne(id);
+              setVue("coffre");
+            }}
+          />
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[14rem_22rem_minmax(0,1fr)]">

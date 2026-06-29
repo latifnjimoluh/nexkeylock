@@ -197,3 +197,35 @@ export function genererMotDePasse(options: OptionsGenerateur): Promise<MotDePass
 export function copierTexte(valeur: string, delaiS: number): Promise<void> {
   return invoke<void>("copier_texte", { valeur, delaiS });
 }
+
+/** Entrée concernée par un constat d'audit. */
+export interface ElementAudit {
+  id: string;
+  nom: string;
+}
+
+/** Rapport d'audit du coffre. */
+export interface RapportAudit {
+  faibles: ElementAudit[];
+  reutilises: ElementAudit[];
+  anciens: ElementAudit[];
+  totalAvecMotDePasse: number;
+  score: number;
+}
+
+/** Entrée dont le mot de passe figure dans une fuite connue. */
+export interface ElementFuite {
+  id: string;
+  nom: string;
+  occurrences: number;
+}
+
+/** Audit hors-ligne (réutilisés/faibles/anciens + score). */
+export function lancerAudit(): Promise<RapportAudit> {
+  return invoke<RapportAudit>("lancer_audit");
+}
+
+/** Vérification de fuites en ligne (k-anonymat, opt-in). */
+export function verifierFuites(): Promise<ElementFuite[]> {
+  return invoke<ElementFuite[]>("verifier_fuites");
+}

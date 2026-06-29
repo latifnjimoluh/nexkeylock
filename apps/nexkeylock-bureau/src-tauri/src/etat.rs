@@ -16,6 +16,7 @@ use nex_coffre::{
 use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
+use crate::fuites::FournisseurHibp;
 
 /// Métadonnées non sensibles renvoyées à l'interface.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -69,6 +70,33 @@ impl EntreeApercu {
 pub struct CodeTotp {
     pub code: String,
     pub secondes_restantes: u64,
+}
+
+/// Un élément cliquable du tableau de bord (entrée concernée).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ElementAudit {
+    pub id: String,
+    pub nom: String,
+}
+
+/// Rapport d'audit destiné à l'interface (avec noms et score de santé).
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RapportAuditApp {
+    pub faibles: Vec<ElementAudit>,
+    pub reutilises: Vec<ElementAudit>,
+    pub anciens: Vec<ElementAudit>,
+    pub total_avec_mot_de_passe: usize,
+    /// Score de santé global, 0 (mauvais) à 100 (excellent).
+    pub score: u32,
+}
+
+/// Une entrée dont le mot de passe figure dans une fuite connue.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ElementFuite {
+    pub id: String,
+    pub nom: String,
+    pub occurrences: u64,
 }
 
 /// Données d'entrée reçues de l'interface (création ou modification).
@@ -256,6 +284,64 @@ impl EtatCoffre {
         Ok(())
     }
 
+    /// Audit hors-ligne : mots de passe faibles, réutilisés, anciens + score.
+    pub fn auditer(&self) -> Result<RapportAuditApp, ErreurCommande> {
+        let coffre = self.coffre()?;
+        let rapport =
+            nex_coffre::audit::auditer(coffre.contenu(), maintenant_unix(), 365 * 86_400, 60.0);
+        let elem = |ids: &[String]| -> Vec<ElementAudit> {
+            ids.iter()
+                .map(|id| ElementAudit {
+                    id: id.clone(),
+                    nom: coffre
+                        .obtenir(id)
+                        .map(|e| e.nom.clone())
+                        .unwrap_or_default(),
+                })
+                .collect()
+        };
+        let total = coffre
+            .entrees()
+            .iter()
+            .filter(|e| e.mot_de_passe.is_some())
+            .count();
+        let score = score_sante(
+            total,
+            rapport.faibles.len(),
+            rapport.reutilises.len(),
+            rapport.anciens.len(),
+        );
+        Ok(RapportAuditApp {
+            faibles: elem(&rapport.faibles),
+            reutilises: elem(&rapport.reutilises),
+            anciens: elem(&rapport.anciens),
+            total_avec_mot_de_passe: total,
+            score,
+        })
+    }
+
+    /// Vérification de fuites en ligne (k-anonymat, opt-in). Une requête HTTPS
+    /// par entrée possédant un mot de passe ; seul un préfixe de hachage transite.
+    pub fn verifier_fuites(&self) -> Result<Vec<ElementFuite>, ErreurCommande> {
+        let coffre = self.coffre()?;
+        let fournisseur = FournisseurHibp;
+        let mut compromis = Vec::new();
+        for e in coffre.entrees() {
+            if let Some(mdp) = e.mot_de_passe.as_deref() {
+                let n = nex_coffre::audit::nombre_de_fuites(mdp, &fournisseur)
+                    .map_err(|_| ErreurCommande::interne("Vérification de fuite indisponible."))?;
+                if n > 0 {
+                    compromis.push(ElementFuite {
+                        id: e.id.clone(),
+                        nom: e.nom.clone(),
+                        occurrences: n,
+                    });
+                }
+            }
+        }
+        Ok(compromis)
+    }
+
     /// Supprime une entrée par identifiant.
     pub fn supprimer(&mut self, id: &str) -> Result<(), ErreurCommande> {
         let coffre = self
@@ -310,6 +396,18 @@ impl Default for EtatPartage {
 /// espaces (évite de stocker des chaînes vides).
 fn non_vide(valeur: Option<String>) -> Option<String> {
     valeur.filter(|s| !s.trim().is_empty())
+}
+
+/// Calcule un score de santé 0..100 à partir des compteurs d'audit, pondérés
+/// (faibles > réutilisés > anciens). Heuristique destinée à l'affichage.
+fn score_sante(total: usize, faibles: usize, reutilises: usize, anciens: usize) -> u32 {
+    if total == 0 {
+        return 100;
+    }
+    let n = total as f64;
+    let penalite =
+        40.0 * (faibles as f64 / n) + 30.0 * (reutilises as f64 / n) + 15.0 * (anciens as f64 / n);
+    (100.0 - penalite).clamp(0.0, 100.0).round() as u32
 }
 
 /// Convertit une catégorie d'interface en [`TypeEntree`].
@@ -478,6 +576,32 @@ mod tests {
         etat.supprimer(&id).unwrap();
         assert_eq!(etat.lister(None).unwrap().len(), 0);
         assert!(etat.supprimer(&id).is_err());
+    }
+
+    #[test]
+    fn audit_detecte_faibles_et_score() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+
+        // Entrée au mot de passe faible.
+        let mut faible = donnees("Faible");
+        faible.mot_de_passe = Some("abc".into());
+        faible.totp = None;
+        etat.ajouter(faible).unwrap();
+
+        let rapport = etat.auditer().unwrap();
+        assert_eq!(rapport.total_avec_mot_de_passe, 1);
+        assert_eq!(rapport.faibles.len(), 1);
+        assert_eq!(rapport.faibles[0].nom, "Faible");
+        assert!(rapport.score < 100);
+    }
+
+    #[test]
+    fn score_sante_borne() {
+        assert_eq!(super::score_sante(0, 0, 0, 0), 100);
+        assert_eq!(super::score_sante(10, 0, 0, 0), 100);
+        // Tout faible : forte pénalité, score réduit.
+        assert!(super::score_sante(10, 10, 0, 0) <= 60);
     }
 
     #[test]

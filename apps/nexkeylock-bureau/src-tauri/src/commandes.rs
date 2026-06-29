@@ -12,7 +12,9 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
-use crate::etat::{Apercu, CodeTotp, DonneesEntree, EntreeApercu, EtatPartage};
+use crate::etat::{
+    Apercu, CodeTotp, DonneesEntree, ElementFuite, EntreeApercu, EtatPartage, RapportAuditApp,
+};
 use crate::presse_papiers;
 
 /// Version du cœur cryptographique (`nex-coffre`). Commande de fumée.
@@ -115,6 +117,19 @@ pub fn copier_totp(
 ) -> Result<(), ErreurCommande> {
     let code = etat.acceder()?.code_totp(&id)?.code;
     presse_papiers::copier_avec_effacement(code, delai_s)
+}
+
+/// Audit hors-ligne du coffre (réutilisés/faibles/anciens + score de santé).
+#[tauri::command]
+pub fn lancer_audit(etat: State<'_, EtatPartage>) -> Result<RapportAuditApp, ErreurCommande> {
+    etat.acceder()?.auditer()
+}
+
+/// Vérification de fuites en ligne (k-anonymat, opt-in). Appel réseau ; ne
+/// transmet que des préfixes de hachage.
+#[tauri::command]
+pub fn verifier_fuites(etat: State<'_, EtatPartage>) -> Result<Vec<ElementFuite>, ErreurCommande> {
+    etat.acceder()?.verifier_fuites()
 }
 
 /// Copie un texte fourni (ex. mot de passe généré) dans le presse-papiers, avec
