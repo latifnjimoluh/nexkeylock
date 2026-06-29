@@ -16,6 +16,7 @@ mod saisie;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::OnceLock;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand};
@@ -27,8 +28,8 @@ use nex_coffre::generateur::{
 };
 use nex_coffre::totp::{secret_depuis_base32, totp, CHIFFRES_DEFAUT, PAS_DEFAUT};
 use nex_coffre::{
-    maintenant_unix, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille, Entree,
-    ParametresArgon2,
+    maintenant_unix, nouveau_fichier_cle, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille,
+    Entree, ParametresArgon2,
 };
 
 use crate::avance::{CommandeEmergency, CommandePasskey, CommandeShare};
@@ -50,8 +51,19 @@ struct Cli {
     /// Chemin du fichier de coffre.
     #[arg(long, global = true)]
     coffre: Option<PathBuf>,
+    /// Fichier-clé (second facteur) à mêler au mot de passe maître.
+    #[arg(long = "fichier-cle", global = true)]
+    fichier_cle: Option<PathBuf>,
     #[command(subcommand)]
     commande: Commande,
+}
+
+/// Fichier-clé chargé une fois pour la durée (courte) du processus CLI.
+static FICHIER_CLE: OnceLock<Zeroizing<Vec<u8>>> = OnceLock::new();
+
+/// Octets du fichier-clé courant, ou tranche vide si aucun (≡ sans second facteur).
+fn fichier_cle_courant() -> &'static [u8] {
+    FICHIER_CLE.get().map(|v| v.as_slice()).unwrap_or(&[])
 }
 
 #[derive(Subcommand)]
@@ -133,6 +145,11 @@ enum Commande {
     Parametres(CommandeParametres),
     /// Vérifie, télécharge ou installe la dernière version.
     Maj(CommandeMaj),
+    /// Génère un fichier-clé (second facteur) dans le fichier indiqué.
+    GenererFichierCle {
+        /// Chemin du fichier-clé à créer.
+        sortie: PathBuf,
+    },
 }
 
 #[derive(Args)]
@@ -211,6 +228,12 @@ fn main() -> ExitCode {
 }
 
 fn executer(cli: Cli) -> Result<()> {
+    // Charge le fichier-clé (second facteur) une fois, le cas échéant.
+    if let Some(chemin_kf) = &cli.fichier_cle {
+        let octets = std::fs::read(chemin_kf)
+            .with_context(|| format!("lecture du fichier-clé « {} »", chemin_kf.display()))?;
+        let _ = FICHIER_CLE.set(Zeroizing::new(octets));
+    }
     // Vérification automatique des mises à jour (best-effort, ~1×/jour), sauf
     // pour les commandes de mise à jour/paramètres qui s'en chargent elles-mêmes.
     if !matches!(cli.commande, Commande::Maj(_) | Commande::Parametres(_)) {
@@ -242,6 +265,7 @@ fn executer(cli: Cli) -> Result<()> {
         Commande::Passkey { commande } => avance::executer_passkey(&chemin, commande),
         Commande::Parametres(cmd) => maj::executer_parametres(cmd),
         Commande::Maj(cmd) => maj::executer_maj(cmd),
+        Commande::GenererFichierCle { sortie } => cmd_generer_fichier_cle(&sortie),
     }
 }
 
@@ -277,8 +301,26 @@ fn ouvrir_deverrouille(chemin: &Path) -> Result<CoffreDeverrouille> {
     let verrou = CoffreVerrouille::ouvrir(chemin)
         .with_context(|| format!("ouverture du coffre « {} »", chemin.display()))?;
     let mdp = lire_mot_de_passe("Mot de passe maître : ")?;
-    let coffre = verrou.deverrouiller(mdp.as_bytes())?;
+    let coffre = verrou.deverrouiller_avec_fichier_cle(mdp.as_bytes(), fichier_cle_courant())?;
     Ok(coffre)
+}
+
+/// Génère un fichier-clé (second facteur) et l'écrit sur le disque.
+fn cmd_generer_fichier_cle(sortie: &Path) -> Result<()> {
+    if sortie.exists() {
+        bail!(
+            "un fichier existe déjà à « {} » ; refus de l'écraser",
+            sortie.display()
+        );
+    }
+    let secret = nouveau_fichier_cle()?;
+    std::fs::write(sortie, secret.as_slice())?;
+    println!("Fichier-clé généré : {}", sortie.display());
+    println!(
+        "Conservez-le SÉPARÉMENT du coffre (et sur chaque appareil). Sans lui, le coffre est \
+         inutilisable, même avec le mot de passe maître."
+    );
+    Ok(())
 }
 
 fn cmd_init(chemin: &Path) -> Result<()> {
@@ -290,7 +332,15 @@ fn cmd_init(chemin: &Path) -> Result<()> {
     }
     creer_repertoire_parent(chemin)?;
     let mdp = lire_nouveau_mot_de_passe()?;
-    CoffreDeverrouille::creer(chemin, mdp.as_bytes(), parametres_kdf())?;
+    CoffreDeverrouille::creer_avec_fichier_cle(
+        chemin,
+        mdp.as_bytes(),
+        fichier_cle_courant(),
+        parametres_kdf(),
+    )?;
+    if !fichier_cle_courant().is_empty() {
+        println!("Coffre protégé par mot de passe + fichier-clé.");
+    }
     println!("Coffre créé : {}", chemin.display());
     println!(
         "Conservez précieusement votre mot de passe maître : il est IMPOSSIBLE de le récupérer."

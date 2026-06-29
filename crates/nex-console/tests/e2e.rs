@@ -92,6 +92,48 @@ fn mauvais_mot_de_passe_echoue() {
 }
 
 #[test]
+fn fichier_cle_second_facteur() {
+    let dir = tempfile::tempdir().unwrap();
+    let coffre = dir.path().join("c.vault");
+    let kf = dir.path().join("ma.cle");
+
+    // Génère le fichier-clé.
+    Command::cargo_bin("nexkeylock")
+        .unwrap()
+        .env("NEXKEYLOCK_SANS_VERIF_MAJ", "1")
+        .arg("generer-fichier-cle")
+        .arg(&kf)
+        .assert()
+        .success();
+    assert!(kf.exists());
+
+    // Création avec fichier-clé.
+    cmd(&coffre, MDP)
+        .arg("--fichier-cle")
+        .arg(&kf)
+        .arg("init")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("fichier-clé"));
+
+    // Déverrouillage AVEC le fichier-clé => succès.
+    cmd(&coffre, MDP)
+        .arg("--fichier-cle")
+        .arg(&kf)
+        .arg("unlock")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("déverrouillé"));
+
+    // Déverrouillage SANS le fichier-clé => échec sûr.
+    cmd(&coffre, MDP)
+        .arg("unlock")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalide"));
+}
+
+#[test]
 fn generate_sans_coffre() {
     Command::cargo_bin("nexkeylock")
         .unwrap()
