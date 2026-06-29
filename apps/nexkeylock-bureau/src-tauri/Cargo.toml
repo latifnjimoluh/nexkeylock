@@ -26,6 +26,8 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zeroize = "1"
+# Presse-papiers (copie à effacement automatique) — sans la pile image.
+arboard = { version = "3.4", default-features = false }
 # Le cœur cryptographique et le coffre : AUCUNE crypto n'est réimplémentée ici.
 nex-coffre = { path = "../../../crates/nex-coffre" }
 

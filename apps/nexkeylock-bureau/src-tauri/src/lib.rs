@@ -6,6 +6,7 @@
 mod commandes;
 mod erreur;
 mod etat;
+mod presse_papiers;
 
 use etat::EtatPartage;
 
@@ -23,6 +24,11 @@ pub fn run() {
             commandes::deverrouiller,
             commandes::verrouiller,
             commandes::configurer_recuperation,
+            commandes::lister_entrees,
+            commandes::reveler_champ,
+            commandes::copier_champ,
+            commandes::obtenir_totp,
+            commandes::copier_totp,
         ])
         .run(tauri::generate_context!());
 

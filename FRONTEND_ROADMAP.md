@@ -5,7 +5,7 @@
 > aucune cryptographie**. Cible : Windows / macOS / Linux, avec une déclinaison
 > **mobile (iOS/Android) anticipée mais différée**.
 >
-> **Statut : VALIDÉE — F0, F1, F2 terminés ; suite F3→.** Décisions actées :
+> **Statut : VALIDÉE — F0→F3 terminés ; suite F4→.** Décisions actées :
 > frontend **français**, **vérification de fuite en ligne opt-in** (HIBP
 > k-anonymat, préfixe seulement, côté Rust), **biométrie bureau dès F7 « au
 > mieux »** (Windows Hello).

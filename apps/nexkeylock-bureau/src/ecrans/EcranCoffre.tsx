@@ -1,18 +1,49 @@
+import { useEffect, useMemo, useState } from "react";
 import { SelecteurTheme } from "../composants/SelecteurTheme";
 import { Bouton } from "../composants/Bouton";
+import { BarreLaterale, type Categorie } from "../composants/BarreLaterale";
+import { ListeEntrees } from "../composants/ListeEntrees";
+import { PanneauDetail } from "../composants/PanneauDetail";
+import { Toast } from "../composants/Toast";
 import { useBoutique } from "../lib/boutique";
+import { listerEntrees, type EntreeApercu } from "../lib/pont";
 
-/**
- * Vue du coffre déverrouillé. Provisoire (Jalon F2) : le Jalon F3 ajoutera la
- * barre latérale, la liste recherchable et le panneau de détail.
- */
+/** Vue principale : barre latérale, liste recherchable, panneau de détail. */
 export function EcranCoffre() {
-  const apercu = useBoutique((b) => b.apercu);
   const verrouiller = useBoutique((b) => b.verrouiller);
 
+  const [categorie, setCategorie] = useState<Categorie>("tout");
+  const [recherche, setRecherche] = useState("");
+  const [entrees, setEntrees] = useState<EntreeApercu[]>([]);
+  const [chargement, setChargement] = useState(true);
+  const [idSelectionne, setIdSelectionne] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let actif = true;
+    setChargement(true);
+    listerEntrees(recherche)
+      .then((liste) => {
+        if (actif) setEntrees(liste);
+      })
+      .finally(() => {
+        if (actif) setChargement(false);
+      });
+    return () => {
+      actif = false;
+    };
+  }, [recherche]);
+
+  const filtrees = useMemo(
+    () => (categorie === "tout" ? entrees : entrees.filter((e) => e.categorie === categorie)),
+    [entrees, categorie],
+  );
+
+  const selection = filtrees.find((e) => e.id === idSelectionne) ?? null;
+
   return (
-    <div className="flex min-h-full flex-col">
-      <header className="flex items-center justify-between border-b border-bordure px-6 py-3">
+    <div className="flex h-full flex-col">
+      <header className="flex items-center justify-between border-b border-bordure px-4 py-2">
         <span className="font-semibold">NexKeyLock</span>
         <div className="flex items-center gap-2">
           <SelecteurTheme />
@@ -21,15 +52,35 @@ export function EcranCoffre() {
           </Bouton>
         </div>
       </header>
-      <main className="flex flex-1 items-center justify-center p-8 text-center">
-        <div className="flex flex-col items-center gap-2">
-          <div className="text-4xl">🔓</div>
-          <h1 className="text-xl font-semibold">Coffre déverrouillé</h1>
-          <p className="text-texte-doux">
-            {apercu?.nombreEntrees ?? 0} entrée(s). La vue complète arrive au Jalon F3.
-          </p>
+
+      <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[14rem_22rem_minmax(0,1fr)]">
+        <div className="hidden md:block">
+          <BarreLaterale categorie={categorie} onCategorie={setCategorie} />
         </div>
-      </main>
+
+        <div className="min-h-0 border-r border-bordure">
+          <ListeEntrees
+            entrees={filtrees}
+            recherche={recherche}
+            onRecherche={setRecherche}
+            idSelectionne={idSelectionne}
+            onSelection={setIdSelectionne}
+            chargement={chargement}
+          />
+        </div>
+
+        <div className="hidden min-h-0 md:block">
+          {selection ? (
+            <PanneauDetail entree={selection} onToast={setToast} />
+          ) : (
+            <div className="flex h-full items-center justify-center p-8 text-center text-texte-doux">
+              Sélectionnez une entrée pour afficher ses détails.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {toast && <Toast message={toast} onFermer={() => setToast(null)} />}
     </div>
   );
 }

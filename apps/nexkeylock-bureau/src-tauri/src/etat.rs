@@ -6,7 +6,10 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use nex_coffre::{CoffreDeverrouille, CoffreVerrouille, ParametresArgon2};
+use nex_coffre::totp::{secret_depuis_base32, totp, CHIFFRES_DEFAUT, PAS_DEFAUT};
+use nex_coffre::{
+    maintenant_unix, CoffreDeverrouille, CoffreVerrouille, Entree, ParametresArgon2, TypeEntree,
+};
 use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
@@ -22,6 +25,47 @@ pub struct Apercu {
     pub nombre_entrees: usize,
     /// `true` si un code de récupération est configuré.
     pub a_recuperation: bool,
+}
+
+/// Métadonnées d'une entrée (jamais de secret : ni mot de passe ni TOTP).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EntreeApercu {
+    pub id: String,
+    pub nom: String,
+    pub nom_utilisateur: Option<String>,
+    pub uris: Vec<String>,
+    /// « connexion » | « note » | « secret ».
+    pub categorie: String,
+    pub a_mot_de_passe: bool,
+    pub a_totp: bool,
+}
+
+impl EntreeApercu {
+    fn depuis(e: &Entree) -> Self {
+        let categorie = match e.type_entree {
+            TypeEntree::Connexion => "connexion",
+            TypeEntree::NoteSecurisee => "note",
+            TypeEntree::SecretGenerique => "secret",
+            // `TypeEntree` est `#[non_exhaustive]` : on prévoit les types futurs.
+            _ => "autre",
+        };
+        Self {
+            id: e.id.clone(),
+            nom: e.nom.clone(),
+            nom_utilisateur: e.nom_utilisateur.clone(),
+            uris: e.uris.clone(),
+            categorie: categorie.to_string(),
+            a_mot_de_passe: e.mot_de_passe.is_some(),
+            a_totp: e.secret_totp.is_some(),
+        }
+    }
+}
+
+/// Code TOTP courant et son temps de validité restant.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CodeTotp {
+    pub code: String,
+    pub secondes_restantes: u64,
 }
 
 /// État du coffre : chemin du fichier + coffre déverrouillé éventuel.
@@ -91,6 +135,68 @@ impl EtatCoffre {
             Some(c) => Ok(c.activer_recuperation(parametres_kdf())?),
             None => Err(ErreurCommande::verrouille()),
         }
+    }
+
+    /// Référence au coffre déverrouillé, ou erreur si verrouillé.
+    fn coffre(&self) -> Result<&CoffreDeverrouille, ErreurCommande> {
+        self.coffre.as_ref().ok_or_else(ErreurCommande::verrouille)
+    }
+
+    /// Liste les entrées (métadonnées), filtrées par `requete` le cas échéant.
+    pub fn lister(&self, requete: Option<&str>) -> Result<Vec<EntreeApercu>, ErreurCommande> {
+        let coffre = self.coffre()?;
+        let entrees = match requete {
+            Some(q) if !q.trim().is_empty() => coffre.rechercher(q),
+            _ => coffre.entrees().iter().collect(),
+        };
+        Ok(entrees.into_iter().map(EntreeApercu::depuis).collect())
+    }
+
+    /// Révèle la valeur d'un champ secret d'une entrée (à la demande).
+    pub fn reveler(&self, id: &str, champ: &str) -> Result<String, ErreurCommande> {
+        let entree = self
+            .coffre()?
+            .obtenir(id)
+            .ok_or_else(|| ErreurCommande::interne("Entrée introuvable."))?;
+        let valeur = match champ {
+            "mot_de_passe" => entree.mot_de_passe.clone(),
+            "notes" => entree.notes.clone(),
+            _ => return Err(ErreurCommande::interne("Champ inconnu.")),
+        };
+        valeur.ok_or_else(|| ErreurCommande::interne("Champ absent."))
+    }
+
+    /// Calcule le code TOTP courant d'une entrée et le temps restant.
+    pub fn code_totp(&self, id: &str) -> Result<CodeTotp, ErreurCommande> {
+        let entree = self
+            .coffre()?
+            .obtenir(id)
+            .ok_or_else(|| ErreurCommande::interne("Entrée introuvable."))?;
+        let secret_b32 = entree
+            .secret_totp
+            .as_deref()
+            .ok_or_else(|| ErreurCommande::interne("Aucun secret TOTP."))?;
+        let secret = secret_depuis_base32(secret_b32)
+            .map_err(|_| ErreurCommande::interne("Secret TOTP invalide."))?;
+        let maintenant = maintenant_unix();
+        let code = totp(&secret, maintenant, PAS_DEFAUT, CHIFFRES_DEFAUT)
+            .map_err(|_| ErreurCommande::interne("Calcul TOTP impossible."))?;
+        Ok(CodeTotp {
+            code,
+            secondes_restantes: PAS_DEFAUT - (maintenant % PAS_DEFAUT),
+        })
+    }
+
+    /// Insère une entrée (réservé aux tests : l'ajout réel arrive au Jalon F4).
+    #[cfg(test)]
+    pub fn inserer_pour_test(&mut self, entree: Entree) -> Result<(), ErreurCommande> {
+        let coffre = self
+            .coffre
+            .as_mut()
+            .ok_or_else(ErreurCommande::verrouille)?;
+        coffre.ajouter(entree);
+        coffre.enregistrer()?;
+        Ok(())
     }
 
     /// Métadonnées courantes (aucun secret).
@@ -215,6 +321,40 @@ mod tests {
         let (_d, mut etat) = etat_temporaire();
         let e = etat.deverrouiller(Zeroizing::new("x".into())).unwrap_err();
         assert_eq!(e.code, "introuvable");
+    }
+
+    #[test]
+    fn lister_rechercher_reveler_et_totp() {
+        let (_d, mut etat) = etat_temporaire();
+        etat.creer(Zeroizing::new("maitre".into())).unwrap();
+
+        let mut e = Entree::connexion("id-1", "Banque", 0);
+        e.nom_utilisateur = Some("moi@exemple.fr".into());
+        e.mot_de_passe = Some("s3cr3t".into());
+        e.secret_totp = Some("JBSWY3DPEHPK3PXP".into());
+        etat.inserer_pour_test(e).unwrap();
+
+        let liste = etat.lister(None).unwrap();
+        assert_eq!(liste.len(), 1);
+        assert_eq!(liste[0].nom, "Banque");
+        assert_eq!(liste[0].categorie, "connexion");
+        assert!(liste[0].a_mot_de_passe && liste[0].a_totp);
+
+        assert_eq!(etat.lister(Some("banq")).unwrap().len(), 1);
+        assert_eq!(etat.lister(Some("introuvable")).unwrap().len(), 0);
+
+        assert_eq!(etat.reveler("id-1", "mot_de_passe").unwrap(), "s3cr3t");
+        assert!(etat.reveler("id-1", "champ-inconnu").is_err());
+
+        let t = etat.code_totp("id-1").unwrap();
+        assert_eq!(t.code.len(), 6);
+        assert!(t.secondes_restantes >= 1 && t.secondes_restantes <= 30);
+    }
+
+    #[test]
+    fn lister_refuse_si_verrouille() {
+        let (_d, etat) = etat_temporaire();
+        assert_eq!(etat.lister(None).unwrap_err().code, "verrouille");
     }
 
     #[test]

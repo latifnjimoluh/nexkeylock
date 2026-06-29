@@ -76,3 +76,69 @@ export async function verrouiller(): Promise<Apercu> {
 export function configurerRecuperation(): Promise<string> {
   return invoke<string>("configurer_recuperation");
 }
+
+/** Métadonnées d'une entrée (jamais de secret). */
+export interface EntreeApercu {
+  id: string;
+  nom: string;
+  nomUtilisateur: string | null;
+  uris: string[];
+  categorie: string;
+  aMotDePasse: boolean;
+  aTotp: boolean;
+}
+
+interface EntreeApercuBrut {
+  id: string;
+  nom: string;
+  nom_utilisateur: string | null;
+  uris: string[];
+  categorie: string;
+  a_mot_de_passe: boolean;
+  a_totp: boolean;
+}
+
+function normaliserEntree(e: EntreeApercuBrut): EntreeApercu {
+  return {
+    id: e.id,
+    nom: e.nom,
+    nomUtilisateur: e.nom_utilisateur,
+    uris: e.uris,
+    categorie: e.categorie,
+    aMotDePasse: e.a_mot_de_passe,
+    aTotp: e.a_totp,
+  };
+}
+
+/** Code TOTP courant et temps de validité restant. */
+export interface CodeTotp {
+  code: string;
+  secondesRestantes: number;
+}
+
+/** Liste les entrées (métadonnées), filtrées par `requete`. */
+export async function listerEntrees(requete?: string): Promise<EntreeApercu[]> {
+  const brut = await invoke<EntreeApercuBrut[]>("lister_entrees", { requete: requete ?? null });
+  return brut.map(normaliserEntree);
+}
+
+/** Révèle la valeur d'un champ secret d'une entrée (à la demande). */
+export function revelerChamp(id: string, champ: string): Promise<string> {
+  return invoke<string>("reveler_champ", { id, champ });
+}
+
+/** Copie un champ dans le presse-papiers, effacé après `delaiS` secondes. */
+export function copierChamp(id: string, champ: string, delaiS: number): Promise<void> {
+  return invoke<void>("copier_champ", { id, champ, delaiS });
+}
+
+/** Code TOTP courant d'une entrée. */
+export async function obtenirTotp(id: string): Promise<CodeTotp> {
+  const t = await invoke<{ code: string; secondes_restantes: number }>("obtenir_totp", { id });
+  return { code: t.code, secondesRestantes: t.secondes_restantes };
+}
+
+/** Copie le code TOTP courant (effacé après `delaiS` secondes). */
+export function copierTotp(id: string, delaiS: number): Promise<void> {
+  return invoke<void>("copier_totp", { id, delaiS });
+}

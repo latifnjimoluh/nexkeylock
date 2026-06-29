@@ -8,7 +8,8 @@ use tauri::State;
 use zeroize::Zeroizing;
 
 use crate::erreur::ErreurCommande;
-use crate::etat::{Apercu, EtatPartage};
+use crate::etat::{Apercu, CodeTotp, EntreeApercu, EtatPartage};
+use crate::presse_papiers;
 
 /// Version du cœur cryptographique (`nex-coffre`). Commande de fumée.
 #[tauri::command]
@@ -62,4 +63,52 @@ pub fn verrouiller(etat: State<'_, EtatPartage>) -> Result<Apercu, ErreurCommand
 pub fn configurer_recuperation(etat: State<'_, EtatPartage>) -> Result<String, ErreurCommande> {
     let code = etat.acceder()?.configurer_recuperation()?;
     Ok(code.to_string())
+}
+
+/// Liste les entrées (métadonnées, sans secret), filtrées par `requete`.
+#[tauri::command]
+pub fn lister_entrees(
+    requete: Option<String>,
+    etat: State<'_, EtatPartage>,
+) -> Result<Vec<EntreeApercu>, ErreurCommande> {
+    etat.acceder()?.lister(requete.as_deref())
+}
+
+/// Révèle la valeur d'un champ secret d'une entrée (à la demande).
+#[tauri::command]
+pub fn reveler_champ(
+    id: String,
+    champ: String,
+    etat: State<'_, EtatPartage>,
+) -> Result<String, ErreurCommande> {
+    etat.acceder()?.reveler(&id, &champ)
+}
+
+/// Copie un champ secret dans le presse-papiers, avec effacement après `delai_s`.
+#[tauri::command]
+pub fn copier_champ(
+    id: String,
+    champ: String,
+    delai_s: u64,
+    etat: State<'_, EtatPartage>,
+) -> Result<(), ErreurCommande> {
+    let valeur = etat.acceder()?.reveler(&id, &champ)?;
+    presse_papiers::copier_avec_effacement(valeur, delai_s)
+}
+
+/// Code TOTP courant d'une entrée et temps de validité restant.
+#[tauri::command]
+pub fn obtenir_totp(id: String, etat: State<'_, EtatPartage>) -> Result<CodeTotp, ErreurCommande> {
+    etat.acceder()?.code_totp(&id)
+}
+
+/// Copie le code TOTP courant dans le presse-papiers (effacé après `delai_s`).
+#[tauri::command]
+pub fn copier_totp(
+    id: String,
+    delai_s: u64,
+    etat: State<'_, EtatPartage>,
+) -> Result<(), ErreurCommande> {
+    let code = etat.acceder()?.code_totp(&id)?.code;
+    presse_papiers::copier_avec_effacement(code, delai_s)
 }
