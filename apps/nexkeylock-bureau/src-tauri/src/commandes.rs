@@ -49,22 +49,57 @@ pub fn etat(etat: State<'_, EtatPartage>) -> Result<Apercu, ErreurCommande> {
     Ok(etat.acceder()?.apercu())
 }
 
-/// Crée un nouveau coffre et le laisse déverrouillé.
+/// Lit le contenu d'un fichier-clé dans un tampon effacé à la libération.
+fn lire_fichier_cle(chemin: &str) -> Result<Zeroizing<Vec<u8>>, ErreurCommande> {
+    std::fs::read(chemin)
+        .map(Zeroizing::new)
+        .map_err(|_| ErreurCommande::interne("Fichier-clé illisible."))
+}
+
+/// Crée un nouveau coffre (avec fichier-clé optionnel) et le laisse déverrouillé.
 #[tauri::command]
 pub fn creer_coffre(
     mot_de_passe: String,
+    chemin_fichier_cle: Option<String>,
     etat: State<'_, EtatPartage>,
 ) -> Result<Apercu, ErreurCommande> {
-    etat.acceder()?.creer(Zeroizing::new(mot_de_passe))
+    let mut garde = etat.acceder()?;
+    let mdp = Zeroizing::new(mot_de_passe);
+    match chemin_fichier_cle {
+        Some(ch) => garde.creer_avec_fichier_cle(mdp, &lire_fichier_cle(&ch)?),
+        None => garde.creer(mdp),
+    }
 }
 
-/// Déverrouille le coffre avec le mot de passe maître.
+/// Déverrouille le coffre (avec fichier-clé optionnel).
 #[tauri::command]
 pub fn deverrouiller(
     mot_de_passe: String,
+    chemin_fichier_cle: Option<String>,
     etat: State<'_, EtatPartage>,
 ) -> Result<Apercu, ErreurCommande> {
-    etat.acceder()?.deverrouiller(Zeroizing::new(mot_de_passe))
+    let mut garde = etat.acceder()?;
+    let mdp = Zeroizing::new(mot_de_passe);
+    match chemin_fichier_cle {
+        Some(ch) => garde.deverrouiller_avec_fichier_cle(mdp, &lire_fichier_cle(&ch)?),
+        None => garde.deverrouiller(mdp),
+    }
+}
+
+/// Indique si le coffre sur disque exige un fichier-clé (pour l'écran de déverrouillage).
+#[tauri::command]
+pub fn fichier_cle_requise(etat: State<'_, EtatPartage>) -> Result<bool, ErreurCommande> {
+    Ok(etat.acceder()?.fichier_cle_requise())
+}
+
+/// Génère un fichier-clé (256 bits aléatoires) et l'écrit dans `chemin`.
+#[tauri::command]
+pub fn generer_fichier_cle(chemin: String) -> Result<(), ErreurCommande> {
+    let secret = nex_coffre::nouveau_fichier_cle()
+        .map_err(|_| ErreurCommande::interne("Génération du fichier-clé impossible."))?;
+    std::fs::write(&chemin, secret.as_slice())
+        .map_err(|_| ErreurCommande::interne("Écriture du fichier-clé impossible."))?;
+    Ok(())
 }
 
 /// Verrouille le coffre (efface la DEK et le contenu en mémoire).

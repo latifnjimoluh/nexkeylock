@@ -57,14 +57,37 @@ export async function etat(): Promise<Apercu> {
   return normaliser(await invoke<ApercuBrut>("etat"));
 }
 
-/** Crée un nouveau coffre (laisse le coffre déverrouillé). */
-export async function creerCoffre(motDePasse: string): Promise<Apercu> {
-  return normaliser(await invoke<ApercuBrut>("creer_coffre", { motDePasse }));
+/** Crée un nouveau coffre (avec fichier-clé optionnel). */
+export async function creerCoffre(motDePasse: string, cheminFichierCle?: string): Promise<Apercu> {
+  return normaliser(
+    await invoke<ApercuBrut>("creer_coffre", {
+      motDePasse,
+      cheminFichierCle: cheminFichierCle ?? null,
+    }),
+  );
 }
 
-/** Déverrouille le coffre avec le mot de passe maître. */
-export async function deverrouiller(motDePasse: string): Promise<Apercu> {
-  return normaliser(await invoke<ApercuBrut>("deverrouiller", { motDePasse }));
+/** Déverrouille le coffre (avec fichier-clé optionnel). */
+export async function deverrouiller(
+  motDePasse: string,
+  cheminFichierCle?: string,
+): Promise<Apercu> {
+  return normaliser(
+    await invoke<ApercuBrut>("deverrouiller", {
+      motDePasse,
+      cheminFichierCle: cheminFichierCle ?? null,
+    }),
+  );
+}
+
+/** Indique si le coffre exige un fichier-clé (second facteur). */
+export function fichierCleRequise(): Promise<boolean> {
+  return invoke<boolean>("fichier_cle_requise");
+}
+
+/** Génère un fichier-clé (256 bits) écrit dans `chemin`. */
+export function genererFichierCle(chemin: string): Promise<void> {
+  return invoke<void>("generer_fichier_cle", { chemin });
 }
 
 /** Verrouille le coffre (efface les clés côté backend). */

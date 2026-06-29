@@ -1,10 +1,16 @@
 import { useState, type FormEvent } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
 import { CadreAuth } from "../composants/CadreAuth";
 import { ChampMotDePasse } from "../composants/ChampMotDePasse";
 import { IndicateurForce } from "../composants/IndicateurForce";
 import { Bouton } from "../composants/Bouton";
 import { useBoutique } from "../lib/boutique";
-import { estErreurCommande, creerCoffre, configurerRecuperation } from "../lib/pont";
+import {
+  estErreurCommande,
+  creerCoffre,
+  configurerRecuperation,
+  genererFichierCle,
+} from "../lib/pont";
 
 const LONGUEUR_MIN = 8;
 
@@ -15,6 +21,7 @@ export function EcranAccueil() {
   const [motDePasse, setMotDePasse] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [recuperationVoulue, setRecuperationVoulue] = useState(true);
+  const [fichierCleVoulu, setFichierCleVoulu] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [occupe, setOccupe] = useState(false);
 
@@ -32,7 +39,20 @@ export function EcranAccueil() {
     setErreur(null);
     setOccupe(true);
     try {
-      await creerCoffre(motDePasse);
+      let cheminFichierCle: string | undefined;
+      if (fichierCleVoulu) {
+        const ch = await save({
+          defaultPath: "nexkeylock.cle",
+          filters: [{ name: "Fichier-clé", extensions: ["cle"] }],
+        });
+        if (!ch) {
+          setErreur("Création annulée : aucun emplacement choisi pour le fichier-clé.");
+          return;
+        }
+        await genererFichierCle(ch);
+        cheminFichierCle = ch;
+      }
+      await creerCoffre(motDePasse, cheminFichierCle);
       setMotDePasse("");
       setConfirmation("");
       if (recuperationVoulue) {
@@ -111,6 +131,19 @@ export function EcranAccueil() {
             onChange={(e) => setRecuperationVoulue(e.target.checked)}
           />
           Générer un code de récupération
+        </label>
+
+        <label className="flex items-start gap-2 text-sm text-texte">
+          <input
+            type="checkbox"
+            checked={fichierCleVoulu}
+            onChange={(e) => setFichierCleVoulu(e.target.checked)}
+            className="mt-1"
+          />
+          <span>
+            Protéger aussi avec un <strong>fichier-clé</strong> (second facteur). À conserver
+            séparément du coffre et sur chaque appareil ; sans lui, le coffre est inutilisable.
+          </span>
         </label>
 
         <p className="rounded-jeton bg-alerte/10 px-3 py-2 text-sm text-alerte">

@@ -11,10 +11,10 @@ interface Boutique {
   pret: boolean;
   /** Charge l'état initial depuis le backend. */
   charger: () => Promise<void>;
-  /** Crée un coffre (le laisse déverrouillé). */
-  creer: (motDePasse: string) => Promise<void>;
-  /** Déverrouille le coffre. */
-  deverrouiller: (motDePasse: string) => Promise<void>;
+  /** Crée un coffre (avec fichier-clé optionnel) ; le laisse déverrouillé. */
+  creer: (motDePasse: string, cheminFichierCle?: string) => Promise<void>;
+  /** Déverrouille le coffre (avec fichier-clé optionnel). */
+  deverrouiller: (motDePasse: string, cheminFichierCle?: string) => Promise<void>;
   /** Verrouille le coffre. */
   verrouiller: () => Promise<void>;
 }
@@ -26,11 +26,11 @@ export const useBoutique = create<Boutique>((set) => ({
     const apercu = await pont.etat();
     set({ apercu, pret: true });
   },
-  creer: async (motDePasse) => {
-    set({ apercu: await pont.creerCoffre(motDePasse) });
+  creer: async (motDePasse, cheminFichierCle) => {
+    set({ apercu: await pont.creerCoffre(motDePasse, cheminFichierCle) });
   },
-  deverrouiller: async (motDePasse) => {
-    set({ apercu: await pont.deverrouiller(motDePasse) });
+  deverrouiller: async (motDePasse, cheminFichierCle) => {
+    set({ apercu: await pont.deverrouiller(motDePasse, cheminFichierCle) });
   },
   verrouiller: async () => {
     set({ apercu: await pont.verrouiller() });

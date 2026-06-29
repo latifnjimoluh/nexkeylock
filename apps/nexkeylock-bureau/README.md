@@ -43,11 +43,11 @@ pnpm tauri build
 
 Les bundles sont produits dans `src-tauri/target/release/bundle/` :
 
-| Plateforme | Sorties | Construit sur |
-|------------|---------|---------------|
-| **Windows** | `nsis/*-setup.exe` (et `msi/*.msi` si WiX présent) | Windows |
-| **macOS** | `dmg/*.dmg`, `macos/*.app` | macOS |
-| **Linux** | `appimage/*.AppImage`, `deb/*.deb`, `rpm/*.rpm` | Linux |
+| Plateforme  | Sorties                                            | Construit sur |
+| ----------- | -------------------------------------------------- | ------------- |
+| **Windows** | `nsis/*-setup.exe` (et `msi/*.msi` si WiX présent) | Windows       |
+| **macOS**   | `dmg/*.dmg`, `macos/*.app`                         | macOS         |
+| **Linux**   | `appimage/*.AppImage`, `deb/*.deb`, `rpm/*.rpm`    | Linux         |
 
 Tauri **ne fait pas de compilation croisée** des bundles : chaque OS se
 construit sur lui-même (poste dédié ou CI matricielle). La première exécution

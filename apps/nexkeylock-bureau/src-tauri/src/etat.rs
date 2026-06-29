@@ -151,8 +151,25 @@ impl EtatCoffre {
         self.chemin.exists()
     }
 
-    /// Crée un nouveau coffre et le laisse déverrouillé en mémoire.
+    /// Crée un nouveau coffre (sans fichier-clé) et le laisse déverrouillé.
     pub fn creer(&mut self, mot_de_passe: Zeroizing<String>) -> Result<Apercu, ErreurCommande> {
+        self.creer_opt(mot_de_passe, None)
+    }
+
+    /// Crée un coffre protégé par mot de passe **+ fichier-clé**.
+    pub fn creer_avec_fichier_cle(
+        &mut self,
+        mot_de_passe: Zeroizing<String>,
+        fichier_cle: &[u8],
+    ) -> Result<Apercu, ErreurCommande> {
+        self.creer_opt(mot_de_passe, Some(fichier_cle))
+    }
+
+    fn creer_opt(
+        &mut self,
+        mot_de_passe: Zeroizing<String>,
+        fichier_cle: Option<&[u8]>,
+    ) -> Result<Apercu, ErreurCommande> {
         if self.chemin.exists() {
             return Err(ErreurCommande::coffre_existant());
         }
@@ -162,22 +179,51 @@ impl EtatCoffre {
                     .map_err(|_| ErreurCommande::interne("Création du dossier impossible."))?;
             }
         }
-        let coffre =
-            CoffreDeverrouille::creer(&self.chemin, mot_de_passe.as_bytes(), parametres_kdf())?;
+        let coffre = CoffreDeverrouille::creer_avec_fichier_cle(
+            &self.chemin,
+            mot_de_passe.as_bytes(),
+            fichier_cle.unwrap_or(&[]),
+            parametres_kdf(),
+        )?;
         self.coffre = Some(coffre);
         Ok(self.apercu())
     }
 
-    /// Déverrouille le coffre avec le mot de passe maître.
+    /// Déverrouille le coffre (sans fichier-clé).
     pub fn deverrouiller(
         &mut self,
         mot_de_passe: Zeroizing<String>,
     ) -> Result<Apercu, ErreurCommande> {
+        self.deverrouiller_opt(mot_de_passe, None)
+    }
+
+    /// Déverrouille avec un **fichier-clé** (second facteur).
+    pub fn deverrouiller_avec_fichier_cle(
+        &mut self,
+        mot_de_passe: Zeroizing<String>,
+        fichier_cle: &[u8],
+    ) -> Result<Apercu, ErreurCommande> {
+        self.deverrouiller_opt(mot_de_passe, Some(fichier_cle))
+    }
+
+    fn deverrouiller_opt(
+        &mut self,
+        mot_de_passe: Zeroizing<String>,
+        fichier_cle: Option<&[u8]>,
+    ) -> Result<Apercu, ErreurCommande> {
         let verrou =
             CoffreVerrouille::ouvrir(&self.chemin).map_err(|_| ErreurCommande::introuvable())?;
-        let coffre = verrou.deverrouiller(mot_de_passe.as_bytes())?;
+        let coffre = verrou
+            .deverrouiller_avec_fichier_cle(mot_de_passe.as_bytes(), fichier_cle.unwrap_or(&[]))?;
         self.coffre = Some(coffre);
         Ok(self.apercu())
+    }
+
+    /// Indique si le coffre sur disque exige un fichier-clé (lecture de l'en-tête).
+    pub fn fichier_cle_requise(&self) -> bool {
+        CoffreVerrouille::ouvrir(&self.chemin)
+            .map(|v| v.entete().fichier_cle_requis)
+            .unwrap_or(false)
     }
 
     /// Verrouille le coffre : le `CoffreDeverrouille` est libéré, ce qui efface

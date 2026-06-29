@@ -60,6 +60,8 @@ pub fn run() {
             commandes::importer_coffre,
             commandes::obtenir_kdf,
             commandes::verifier_maj,
+            commandes::fichier_cle_requise,
+            commandes::generer_fichier_cle,
         ])
         .run(tauri::generate_context!());
 
