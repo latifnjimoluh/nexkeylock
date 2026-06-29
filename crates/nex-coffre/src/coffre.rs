@@ -48,9 +48,24 @@ impl CoffreVerrouille {
     pub fn ouvrir(chemin: impl AsRef<Path>) -> Result<Self, ErreurCoffre> {
         let chemin = chemin.as_ref().to_path_buf();
         let donnees = std::fs::read(&chemin)?;
-        let fichier = FichierCoffre::decoder(&donnees)?;
+        let mut coffre = Self::depuis_octets(&donnees)?;
+        coffre.chemin = chemin;
+        Ok(coffre)
+    }
+
+    /// Décode un coffre **depuis des octets en mémoire** (sans disque) — pour les
+    /// cibles sans système de fichiers (navigateur/WASM, IndexedDB). Le chemin
+    /// reste vide ; l'écriture sur disque n'est pas possible sur un tel coffre.
+    ///
+    /// # Erreurs
+    /// Comme [`Self::ouvrir`], hormis l'E/S disque.
+    pub fn depuis_octets(octets: &[u8]) -> Result<Self, ErreurCoffre> {
+        let fichier = FichierCoffre::decoder(octets)?;
         fichier.entete.valider()?;
-        Ok(Self { chemin, fichier })
+        Ok(Self {
+            chemin: PathBuf::new(),
+            fichier,
+        })
     }
 
     /// En-tête authentifié du coffre.
@@ -129,7 +144,7 @@ impl CoffreVerrouille {
             contenu,
             recuperation: self.fichier.recuperation,
             secret_fichier_cle: Zeroizing::new(fichier_cle.to_vec()),
-            derniere_activite: Instant::now(),
+            derniere_activite: instant_courant(),
         })
     }
 
@@ -198,7 +213,7 @@ impl CoffreVerrouille {
             // conserve aucun. Après récupération + changement de mot de passe, le
             // coffre redevient sans fichier-clé (voir `changer_mot_de_passe`).
             secret_fichier_cle: Zeroizing::new(Vec::new()),
-            derniere_activite: Instant::now(),
+            derniere_activite: instant_courant(),
         })
     }
 }
@@ -218,7 +233,8 @@ pub struct CoffreDeverrouille {
     /// Conservé pour réemballer la DEK lors d'un changement de mot de passe ;
     /// effacé à la libération.
     secret_fichier_cle: Zeroizing<Vec<u8>>,
-    derniere_activite: Instant,
+    /// Dernière activité (auto-lock). `None` sur wasm32 (pas d'`Instant`).
+    derniere_activite: Option<Instant>,
 }
 
 impl CoffreDeverrouille {
@@ -246,6 +262,40 @@ impl CoffreDeverrouille {
         fichier_cle: &[u8],
         parametres: ParametresArgon2,
     ) -> Result<Self, ErreurCoffre> {
+        let coffre = Self::construire(
+            chemin.as_ref().to_path_buf(),
+            mot_de_passe,
+            fichier_cle,
+            parametres,
+        )?;
+        let octets = coffre.vers_octets()?;
+        ecrire_atomique(&coffre.chemin, &octets)?;
+        Ok(coffre)
+    }
+
+    /// Crée un coffre **en mémoire** (sans disque) et renvoie aussi ses octets
+    /// chiffrés, à stocker par l'appelant (IndexedDB, etc.). Pour les cibles sans
+    /// système de fichiers (navigateur/WASM). Le `chemin` reste vide.
+    ///
+    /// # Erreurs
+    /// [`ErreurCoffre::Crypto`] ou [`ErreurCoffre::Serialisation`].
+    pub fn creer_en_memoire(
+        mot_de_passe: &[u8],
+        fichier_cle: &[u8],
+        parametres: ParametresArgon2,
+    ) -> Result<(Self, Vec<u8>), ErreurCoffre> {
+        let coffre = Self::construire(PathBuf::new(), mot_de_passe, fichier_cle, parametres)?;
+        let octets = coffre.vers_octets()?;
+        Ok((coffre, octets))
+    }
+
+    /// Construit un coffre déverrouillé neuf **sans écrire sur disque**.
+    fn construire(
+        chemin: PathBuf,
+        mot_de_passe: &[u8],
+        fichier_cle: &[u8],
+        parametres: ParametresArgon2,
+    ) -> Result<Self, ErreurCoffre> {
         let algo = Algorithme::XChaCha20Poly1305;
         let sel = octets_aleatoires::<LONGUEUR_SEL>()?.to_vec();
         let mut entete = EnteteAuth::nouveau(algo, parametres, sel.clone());
@@ -258,8 +308,8 @@ impl CoffreDeverrouille {
         let nonce_dek = nonce_neuf(algo)?;
         let dek_emballee = aead::chiffrer(algo, &kek, &nonce_dek, dek.exposer(), &entete_brut)?;
 
-        let coffre = Self {
-            chemin: chemin.as_ref().to_path_buf(),
+        Ok(Self {
+            chemin,
             entete,
             entete_brut,
             nonce_dek,
@@ -268,11 +318,17 @@ impl CoffreDeverrouille {
             contenu: ContenuCoffre::default(),
             recuperation: Vec::new(),
             secret_fichier_cle: Zeroizing::new(fichier_cle.to_vec()),
-            derniere_activite: Instant::now(),
-        };
-        let octets = coffre.vers_octets()?;
-        ecrire_atomique(&coffre.chemin, &octets)?;
-        Ok(coffre)
+            derniere_activite: instant_courant(),
+        })
+    }
+
+    /// Octets chiffrés courants du coffre (pour stockage hors disque : IndexedDB,
+    /// synchronisation…). Le corps est rechiffré avec un nonce neuf.
+    ///
+    /// # Erreurs
+    /// [`ErreurCoffre::Crypto`] ou [`ErreurCoffre::Serialisation`].
+    pub fn octets(&self) -> Result<Vec<u8>, ErreurCoffre> {
+        self.vers_octets()
     }
 
     /// Active (ou remplace) un **code de récupération** : la DEK est emballée
@@ -471,12 +527,14 @@ impl CoffreDeverrouille {
     /// Indique si le coffre est inactif depuis au moins `delai` (verrouillage
     /// automatique : la politique est appliquée par l'appelant).
     pub fn est_inactif(&self, delai: Duration) -> bool {
-        self.derniere_activite.elapsed() >= delai
+        self.derniere_activite
+            .map(|t| t.elapsed() >= delai)
+            .unwrap_or(false)
     }
 
     /// Réinitialise le minuteur d'inactivité.
     pub fn toucher(&mut self) {
-        self.derniere_activite = Instant::now();
+        self.derniere_activite = instant_courant();
     }
 
     /// Construit les octets chiffrés du fichier (corps rechiffré avec un nonce
@@ -514,6 +572,20 @@ impl core::fmt::Debug for CoffreDeverrouille {
             .field("nombre_entrees", &self.contenu.entrees.len())
             .field("dek", &"***")
             .finish()
+    }
+}
+
+/// Instant courant pour le minuteur d'inactivité. `None` sur wasm32, où
+/// `std::time::Instant::now()` n'est pas pris en charge (l'auto-lock y est géré
+/// par l'hôte JavaScript, pas par le cœur).
+fn instant_courant() -> Option<Instant> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        Some(Instant::now())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        None
     }
 }
 
@@ -654,6 +726,36 @@ mod tests {
 
     fn params_rapides() -> ParametresArgon2 {
         ParametresArgon2::new(8, 1, 1)
+    }
+
+    #[test]
+    fn creer_en_memoire_puis_depuis_octets() {
+        // Cycle sans disque (cible WASM/IndexedDB) : créer → muter → octets →
+        // ré-ouvrir depuis octets → déverrouiller.
+        let (mut coffre, octets_initial) =
+            CoffreDeverrouille::creer_en_memoire(b"mdp", &[], params_rapides()).unwrap();
+        coffre.ajouter(Entree::connexion("id1", "Banque", 0));
+        let octets = coffre.octets().unwrap();
+
+        let ouvert = CoffreVerrouille::depuis_octets(&octets)
+            .unwrap()
+            .deverrouiller(b"mdp")
+            .unwrap();
+        assert_eq!(ouvert.entrees().len(), 1);
+        assert_eq!(ouvert.entrees()[0].nom, "Banque");
+
+        // Les octets initiaux (coffre vide) restent valides.
+        let vide = CoffreVerrouille::depuis_octets(&octets_initial)
+            .unwrap()
+            .deverrouiller(b"mdp")
+            .unwrap();
+        assert_eq!(vide.entrees().len(), 0);
+
+        // Mauvais mot de passe rejeté depuis octets.
+        assert!(CoffreVerrouille::depuis_octets(&octets)
+            .unwrap()
+            .deverrouiller(b"faux")
+            .is_err());
     }
 
     #[test]

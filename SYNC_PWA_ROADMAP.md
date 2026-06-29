@@ -4,7 +4,8 @@
 > PC) → tous mes mots de passe**, gratuitement, en restant **zéro-connaissance**,
 > avec une **sécurité renforcée** (second facteur).
 >
-> **Statut : EN ATTENTE DE VALIDATION.** Aucun code n'est écrit avant ton feu vert.
+> **Statut : VALIDÉE — S0, S1, S2, S3 faits. Suite : S4 (PWA).**
+> S0 second facteur · S1 serveur · S2 synchro bureau · S3 cœur compilé en WASM.
 
 ---
 

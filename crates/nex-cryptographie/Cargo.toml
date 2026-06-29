@@ -21,9 +21,13 @@ getrandom.workspace = true
 rand.workspace = true
 zeroize.workspace = true
 subtle.workspace = true
-# Verrouillage des pages mémoire des secrets (VirtualLock/mlock), best-effort.
-region.workspace = true
 thiserror.workspace = true
+
+# Verrouillage des pages mémoire des secrets (VirtualLock/mlock), best-effort.
+# Indisponible sur wasm32 (pas de mémoire protégée dans le navigateur) : sur
+# cette cible, le verrouillage devient un no-op (effacement « au mieux »).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+region.workspace = true
 
 [dev-dependencies]
 hex.workspace = true

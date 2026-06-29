@@ -281,7 +281,8 @@ pub fn servir(serveur: tiny_http::Server) {
 fn vers_http(reponse: &Reponse) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
     let mut http = tiny_http::Response::from_data(reponse.corps.clone())
         .with_status_code(tiny_http::StatusCode(reponse.code));
-    if let Ok(entete) = tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..])
+    if let Ok(entete) =
+        tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..])
     {
         http = http.with_header(entete);
     }

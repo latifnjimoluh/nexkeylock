@@ -44,15 +44,22 @@ pub const LONGUEUR_CLE: usize = 32;
 /// déverrouillage au passage `1 -> 0`. Toutes les opérations OS sont
 /// **best-effort** (un échec est ignoré, jamais de panique).
 mod verrou_pages {
+    // Sur wasm32 (navigateur), il n'existe pas de mémoire verrouillable : les
+    // deux fonctions deviennent des no-op (effacement « au mieux »).
+
+    #[cfg(not(target_arch = "wasm32"))]
     use std::collections::HashMap;
+    #[cfg(not(target_arch = "wasm32"))]
     use std::sync::{Mutex, OnceLock};
 
+    #[cfg(not(target_arch = "wasm32"))]
     fn registre() -> &'static Mutex<HashMap<usize, usize>> {
         static REGISTRE: OnceLock<Mutex<HashMap<usize, usize>>> = OnceLock::new();
         REGISTRE.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
     /// Adresses de début des pages couvrant `[ptr, ptr + taille)`.
+    #[cfg(not(target_arch = "wasm32"))]
     fn pages(ptr: *const u8, taille: usize) -> Vec<usize> {
         let page = region::page::size();
         let adresse = ptr as usize;
@@ -68,6 +75,7 @@ mod verrou_pages {
     }
 
     /// Incrémente le compte des pages couvertes ; verrouille au passage `0 -> 1`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn verrouiller(ptr: *const u8, taille: usize) {
         let page = region::page::size();
         let mut reg = registre().lock().unwrap_or_else(|e| e.into_inner());
@@ -85,6 +93,7 @@ mod verrou_pages {
     }
 
     /// Décrémente le compte ; déverrouille au passage `1 -> 0`.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(super) fn deverrouiller(ptr: *const u8, taille: usize) {
         let page = region::page::size();
         let mut reg = registre().lock().unwrap_or_else(|e| e.into_inner());
@@ -98,6 +107,12 @@ mod verrou_pages {
             }
         }
     }
+
+    // --- wasm32 : pas de verrouillage mémoire disponible (no-op). ---
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn verrouiller(_ptr: *const u8, _taille: usize) {}
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn deverrouiller(_ptr: *const u8, _taille: usize) {}
 }
 
 /// Clé symétrique secrète de 256 bits : pages verrouillées (best-effort) et

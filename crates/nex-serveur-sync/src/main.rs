@@ -10,7 +10,9 @@ fn main() {
 
     match nex_serveur_sync::lier(&adresse) {
         Ok(serveur) => {
-            eprintln!("nexkeylock-serveur-sync à l'écoute sur http://{adresse} (zéro-connaissance)");
+            eprintln!(
+                "nexkeylock-serveur-sync à l'écoute sur http://{adresse} (zéro-connaissance)"
+            );
             nex_serveur_sync::servir(serveur);
         }
         Err(e) => {
