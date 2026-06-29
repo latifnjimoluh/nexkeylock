@@ -81,7 +81,33 @@ pub fn deriver_cle(
     sel: &[u8],
     parametres: ParametresArgon2,
 ) -> Result<CleSecrete, ErreurCrypto> {
-    let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, parametres.en_params()?);
+    deriver_cle_avec_secret(mot_de_passe, sel, parametres, &[])
+}
+
+/// Dérive une clé en mélangeant un **secret** supplémentaire (paramètre « secret »
+/// d'Argon2id, RFC 9106) : c'est le mécanisme du **fichier-clé** (second facteur).
+///
+/// Un `secret` **vide** est strictement équivalent à [`deriver_cle`] : la
+/// compatibilité avec les coffres existants (sans fichier-clé) est donc totale.
+/// Avec un fichier-clé, la clé ne peut être recalculée **sans** ce secret —
+/// même en connaissant le mot de passe.
+///
+/// # Erreurs
+/// - [`ErreurCrypto::ParametresKdf`] si les paramètres ou le secret sont invalides ;
+/// - [`ErreurCrypto::DerivationKdf`] si la dérivation échoue.
+pub fn deriver_cle_avec_secret(
+    mot_de_passe: &[u8],
+    sel: &[u8],
+    parametres: ParametresArgon2,
+    secret: &[u8],
+) -> Result<CleSecrete, ErreurCrypto> {
+    let argon = Argon2::new_with_secret(
+        secret,
+        Algorithm::Argon2id,
+        Version::V0x13,
+        parametres.en_params()?,
+    )
+    .map_err(|_| ErreurCrypto::ParametresKdf)?;
     let mut sortie = [0u8; LONGUEUR_CLE];
     argon
         .hash_password_into(mot_de_passe, sel, &mut sortie)
@@ -122,6 +148,34 @@ mod tests {
         let a = deriver_cle(b"motdepasse-a", &sel, params_test()).unwrap();
         let b = deriver_cle(b"motdepasse-b", &sel, params_test()).unwrap();
         assert_ne!(a, b);
+    }
+
+    #[test]
+    fn secret_vide_equivaut_a_sans_secret() {
+        // Compatibilité ascendante : un fichier-clé vide ne change rien.
+        let sel = [0x42u8; 16];
+        let sans = deriver_cle(b"motdepasse", &sel, params_test()).unwrap();
+        let avec_vide = deriver_cle_avec_secret(b"motdepasse", &sel, params_test(), &[]).unwrap();
+        assert_eq!(sans, avec_vide);
+    }
+
+    #[test]
+    fn secret_different_donne_cle_differente() {
+        // Même mot de passe + même sel, mais fichiers-clés différents => clés différentes.
+        let sel = [0x42u8; 16];
+        let a = deriver_cle_avec_secret(b"motdepasse", &sel, params_test(), &[0x01; 32]).unwrap();
+        let b = deriver_cle_avec_secret(b"motdepasse", &sel, params_test(), &[0x02; 32]).unwrap();
+        let sans = deriver_cle(b"motdepasse", &sel, params_test()).unwrap();
+        assert_ne!(a, b);
+        assert_ne!(a, sans);
+    }
+
+    #[test]
+    fn meme_secret_donne_meme_cle() {
+        let sel = [0x42u8; 16];
+        let a = deriver_cle_avec_secret(b"mdp", &sel, params_test(), &[0x07; 32]).unwrap();
+        let b = deriver_cle_avec_secret(b"mdp", &sel, params_test(), &[0x07; 32]).unwrap();
+        assert_eq!(a, b);
     }
 
     #[test]

@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use nex_cryptographie::aead::{self, Algorithme};
 use nex_cryptographie::alea::octets_aleatoires;
-use nex_cryptographie::kdf::{deriver_cle, ParametresArgon2};
+use nex_cryptographie::kdf::{deriver_cle, deriver_cle_avec_secret, ParametresArgon2};
 use nex_cryptographie::CleSecrete;
 use zeroize::Zeroizing;
 
@@ -68,9 +68,28 @@ impl CoffreVerrouille {
     /// Voir ci-dessus, plus [`ErreurCoffre::Serialisation`] si le contenu
     /// déchiffré est illisible.
     pub fn deverrouiller(self, mot_de_passe: &[u8]) -> Result<CoffreDeverrouille, ErreurCoffre> {
+        self.deverrouiller_avec_fichier_cle(mot_de_passe, &[])
+    }
+
+    /// Déverrouille avec un **fichier-clé** (second facteur). Le secret est mêlé
+    /// à Argon2id : un secret vide équivaut à [`Self::deverrouiller`].
+    ///
+    /// # Erreurs
+    /// [`ErreurCoffre::MotDePasseInvalide`] si le mot de passe **ou** le
+    /// fichier-clé est incorrect (indistinguable, par construction).
+    pub fn deverrouiller_avec_fichier_cle(
+        self,
+        mot_de_passe: &[u8],
+        fichier_cle: &[u8],
+    ) -> Result<CoffreDeverrouille, ErreurCoffre> {
         let algo = self.fichier.entete.valider()?;
         let parametres = self.fichier.entete.parametres_kdf();
-        let kek = deriver_cle(mot_de_passe, &self.fichier.entete.sel, parametres)?;
+        let kek = deriver_cle_avec_secret(
+            mot_de_passe,
+            &self.fichier.entete.sel,
+            parametres,
+            fichier_cle,
+        )?;
 
         // Déballage de la DEK (authentifie l'en-tête complet via aad_dek).
         let dek_clair = Zeroizing::new(
@@ -109,6 +128,7 @@ impl CoffreVerrouille {
             dek,
             contenu,
             recuperation: self.fichier.recuperation,
+            secret_fichier_cle: Zeroizing::new(fichier_cle.to_vec()),
             derniere_activite: Instant::now(),
         })
     }
@@ -174,6 +194,10 @@ impl CoffreVerrouille {
             dek,
             contenu,
             recuperation: self.fichier.recuperation,
+            // La récupération est **indépendante** du fichier-clé : on n'en
+            // conserve aucun. Après récupération + changement de mot de passe, le
+            // coffre redevient sans fichier-clé (voir `changer_mot_de_passe`).
+            secret_fichier_cle: Zeroizing::new(Vec::new()),
             derniere_activite: Instant::now(),
         })
     }
@@ -190,6 +214,10 @@ pub struct CoffreDeverrouille {
     contenu: ContenuCoffre,
     /// Bloc de récupération sérialisé (vide = aucune récupération).
     recuperation: Vec<u8>,
+    /// Secret du fichier-clé (second facteur) ; **vide** si aucun fichier-clé.
+    /// Conservé pour réemballer la DEK lors d'un changement de mot de passe ;
+    /// effacé à la libération.
+    secret_fichier_cle: Zeroizing<Vec<u8>>,
     derniere_activite: Instant,
 }
 
@@ -204,12 +232,28 @@ impl CoffreDeverrouille {
         mot_de_passe: &[u8],
         parametres: ParametresArgon2,
     ) -> Result<Self, ErreurCoffre> {
+        Self::creer_avec_fichier_cle(chemin, mot_de_passe, &[], parametres)
+    }
+
+    /// Crée un coffre protégé par **mot de passe + fichier-clé** (second facteur).
+    /// Un `fichier_cle` vide équivaut à [`Self::creer`].
+    ///
+    /// # Erreurs
+    /// [`ErreurCoffre::Io`], [`ErreurCoffre::Crypto`] ou [`ErreurCoffre::Serialisation`].
+    pub fn creer_avec_fichier_cle(
+        chemin: impl AsRef<Path>,
+        mot_de_passe: &[u8],
+        fichier_cle: &[u8],
+        parametres: ParametresArgon2,
+    ) -> Result<Self, ErreurCoffre> {
         let algo = Algorithme::XChaCha20Poly1305;
         let sel = octets_aleatoires::<LONGUEUR_SEL>()?.to_vec();
-        let entete = EnteteAuth::nouveau(algo, parametres, sel.clone());
+        let mut entete = EnteteAuth::nouveau(algo, parametres, sel.clone());
+        // Le flag doit être posé AVANT le calcul de aad_dek (qui l'authentifie).
+        entete.fichier_cle_requis = !fichier_cle.is_empty();
         let entete_brut = entete.aad_dek()?;
 
-        let kek = deriver_cle(mot_de_passe, &sel, parametres)?;
+        let kek = deriver_cle_avec_secret(mot_de_passe, &sel, parametres, fichier_cle)?;
         let dek = CleSecrete::aleatoire()?;
         let nonce_dek = nonce_neuf(algo)?;
         let dek_emballee = aead::chiffrer(algo, &kek, &nonce_dek, dek.exposer(), &entete_brut)?;
@@ -223,6 +267,7 @@ impl CoffreDeverrouille {
             dek,
             contenu: ContenuCoffre::default(),
             recuperation: Vec::new(),
+            secret_fichier_cle: Zeroizing::new(fichier_cle.to_vec()),
             derniere_activite: Instant::now(),
         };
         let octets = coffre.vers_octets()?;
@@ -384,10 +429,13 @@ impl CoffreDeverrouille {
         let parametres = self.entete.parametres_kdf();
 
         let nouveau_sel = octets_aleatoires::<LONGUEUR_SEL>()?.to_vec();
-        let nouvelle_entete = EnteteAuth::nouveau(algo, parametres, nouveau_sel.clone());
+        let mut nouvelle_entete = EnteteAuth::nouveau(algo, parametres, nouveau_sel.clone());
+        // Conserve l'exigence de fichier-clé (vide après une récupération).
+        nouvelle_entete.fichier_cle_requis = !self.secret_fichier_cle.is_empty();
         let nouvel_entete_brut = nouvelle_entete.aad_dek()?;
 
-        let kek = deriver_cle(nouveau, &nouveau_sel, parametres)?;
+        let kek =
+            deriver_cle_avec_secret(nouveau, &nouveau_sel, parametres, &self.secret_fichier_cle)?;
         let nonce_dek = nonce_neuf(algo)?;
         let dek_emballee = aead::chiffrer(
             algo,
@@ -499,6 +547,18 @@ pub fn nouvel_identifiant() -> Result<String, ErreurCoffre> {
     Ok(hex_minuscule(&octets))
 }
 
+/// Génère le contenu d'un **fichier-clé** : 256 bits aléatoires (CSPRNG).
+///
+/// L'appelant l'écrit dans un fichier, à conserver **séparément** du coffre et
+/// **jamais synchronisé** avec lui. Au déverrouillage, on relit ces octets et on
+/// les passe comme second facteur.
+///
+/// # Erreurs
+/// [`ErreurCoffre::Crypto`] si la source d'aléa est indisponible.
+pub fn nouveau_fichier_cle() -> Result<Zeroizing<Vec<u8>>, ErreurCoffre> {
+    Ok(Zeroizing::new(octets_aleatoires::<32>()?.to_vec()))
+}
+
 /// Horodatage courant en secondes Unix (0 si l'horloge est antérieure à l'epoch).
 pub fn maintenant_unix() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -590,5 +650,78 @@ mod tests {
     #[test]
     fn canonicalisation_ignore_casse_et_separateurs() {
         assert_eq!(canonicaliser_code("AB-cd EF-12"), "abcdef12");
+    }
+
+    fn params_rapides() -> ParametresArgon2 {
+        ParametresArgon2::new(8, 1, 1)
+    }
+
+    #[test]
+    fn fichier_cle_requis_pour_deverrouiller() {
+        let dir = tempfile::tempdir().unwrap();
+        let chemin = dir.path().join("c.vault");
+        let kf = b"secret-fichier-cle-de-32-octets!";
+        CoffreDeverrouille::creer_avec_fichier_cle(&chemin, b"mdp", kf, params_rapides()).unwrap();
+
+        // L'en-tête signale le second facteur.
+        assert!(
+            CoffreVerrouille::ouvrir(&chemin)
+                .unwrap()
+                .entete()
+                .fichier_cle_requis
+        );
+
+        // Bon mot de passe + bon fichier-clé => succès.
+        assert!(CoffreVerrouille::ouvrir(&chemin)
+            .unwrap()
+            .deverrouiller_avec_fichier_cle(b"mdp", kf)
+            .is_ok());
+
+        // Bon mot de passe, SANS fichier-clé => échec sûr.
+        assert!(matches!(
+            CoffreVerrouille::ouvrir(&chemin)
+                .unwrap()
+                .deverrouiller(b"mdp"),
+            Err(ErreurCoffre::MotDePasseInvalide)
+        ));
+
+        // Bon mot de passe, MAUVAIS fichier-clé => échec sûr.
+        assert!(matches!(
+            CoffreVerrouille::ouvrir(&chemin)
+                .unwrap()
+                .deverrouiller_avec_fichier_cle(b"mdp", b"mauvais-fichier"),
+            Err(ErreurCoffre::MotDePasseInvalide)
+        ));
+    }
+
+    #[test]
+    fn coffre_sans_fichier_cle_reste_compatible() {
+        let dir = tempfile::tempdir().unwrap();
+        let chemin = dir.path().join("c.vault");
+        CoffreDeverrouille::creer(&chemin, b"mdp", params_rapides()).unwrap();
+        let verrou = CoffreVerrouille::ouvrir(&chemin).unwrap();
+        assert!(!verrou.entete().fichier_cle_requis);
+        assert!(verrou.deverrouiller(b"mdp").is_ok());
+    }
+
+    #[test]
+    fn changement_mot_de_passe_conserve_le_fichier_cle() {
+        let dir = tempfile::tempdir().unwrap();
+        let chemin = dir.path().join("c.vault");
+        let kf = b"fichier-cle-de-test-aaaaaaaaaaaa";
+        let mut c =
+            CoffreDeverrouille::creer_avec_fichier_cle(&chemin, b"ancien", kf, params_rapides())
+                .unwrap();
+        c.changer_mot_de_passe(b"nouveau").unwrap();
+
+        assert!(CoffreVerrouille::ouvrir(&chemin)
+            .unwrap()
+            .deverrouiller_avec_fichier_cle(b"nouveau", kf)
+            .is_ok());
+        // Le fichier-clé reste exigé après le changement de mot de passe.
+        assert!(CoffreVerrouille::ouvrir(&chemin)
+            .unwrap()
+            .deverrouiller(b"nouveau")
+            .is_err());
     }
 }

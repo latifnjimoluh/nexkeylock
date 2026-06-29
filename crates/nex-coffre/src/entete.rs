@@ -45,6 +45,17 @@ pub struct EnteteAuth {
     pub kdf_p: u32,
     /// Sel du KDF (≥ 16 octets, en clair, unique par coffre).
     pub sel: Vec<u8>,
+    /// `true` si un **fichier-clé** (second facteur) est requis pour le
+    /// déverrouillage par mot de passe. **Omis de la sérialisation lorsqu'il vaut
+    /// `false`** : les coffres existants (sans ce champ) produisent exactement le
+    /// même `aad_dek` qu'avant — compatibilité ascendante totale.
+    #[serde(default, skip_serializing_if = "est_faux")]
+    pub fichier_cle_requis: bool,
+}
+
+/// Aide pour `skip_serializing_if` : vrai si la valeur est `false`.
+fn est_faux(valeur: &bool) -> bool {
+    !*valeur
 }
 
 impl EnteteAuth {
@@ -58,6 +69,7 @@ impl EnteteAuth {
             kdf_t: parametres.iterations,
             kdf_p: parametres.parallelisme,
             sel,
+            fichier_cle_requis: false,
         }
     }
 
@@ -168,5 +180,25 @@ mod tests {
         let mut e2 = e.clone();
         e2.sel = vec![0x99; 16];
         assert_ne!(e.aad_dek().unwrap(), e2.aad_dek().unwrap());
+    }
+
+    #[test]
+    fn fichier_cle_requis_faux_par_defaut() {
+        assert!(!entete().fichier_cle_requis);
+    }
+
+    #[test]
+    fn flag_fichier_cle_compat_ascendante_et_authentifie() {
+        // Quand false, le champ est omis : les octets se redécodent en false
+        // (un coffre existant, sans ce champ, reste lisible et inchangé).
+        let e = entete();
+        let octets_faux = e.aad_dek().unwrap();
+        let redecode: EnteteAuth = ciborium::from_reader(octets_faux.as_slice()).unwrap();
+        assert!(!redecode.fichier_cle_requis);
+
+        // Quand true, l'aad_dek diffère (le flag est authentifié, non strippable).
+        let mut e2 = e.clone();
+        e2.fichier_cle_requis = true;
+        assert_ne!(octets_faux, e2.aad_dek().unwrap());
     }
 }

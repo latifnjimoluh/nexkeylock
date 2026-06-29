@@ -24,7 +24,9 @@ pub mod generateur;
 pub mod modele;
 pub mod totp;
 
-pub use coffre::{maintenant_unix, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille};
+pub use coffre::{
+    maintenant_unix, nouveau_fichier_cle, nouvel_identifiant, CoffreDeverrouille, CoffreVerrouille,
+};
 pub use erreurs::ErreurCoffre;
 pub use modele::{ContenuCoffre, Entree, TypeEntree};
 
