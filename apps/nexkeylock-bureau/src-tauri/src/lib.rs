@@ -19,6 +19,20 @@ pub fn run() {
     let resultat = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(EtatPartage::default())
+        .setup(|app| {
+            // Protection contre la capture d'écran (exclut la fenêtre des
+            // captures et de l'aperçu multitâche là où l'OS le permet). Activée
+            // en release uniquement, pour ne pas gêner le développement.
+            #[cfg(not(debug_assertions))]
+            {
+                use tauri::Manager;
+                if let Some(fenetre) = app.get_webview_window("main") {
+                    let _ = fenetre.set_content_protected(true);
+                }
+            }
+            let _ = app;
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commandes::version_coeur,
             commandes::coffre_existe,

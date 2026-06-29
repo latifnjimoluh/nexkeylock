@@ -11,6 +11,7 @@ import { EcranGenerateur } from "./EcranGenerateur";
 import { EcranTableauBord } from "./EcranTableauBord";
 import { EcranReglages } from "./EcranReglages";
 import { useBoutique } from "../lib/boutique";
+import { useVerrouillageAuto } from "../lib/verrouillageAuto";
 import { listerEntrees, obtenirReglages, supprimerEntree, type EntreeApercu } from "../lib/pont";
 
 type Vue = "coffre" | "generateur" | "tableau" | "reglages";
@@ -29,12 +30,19 @@ export function EcranCoffre() {
   const [rechargement, setRechargement] = useState(0);
   const [vue, setVue] = useState<Vue>("coffre");
   const [delaiCopie, setDelaiCopie] = useState(20);
+  const [delaiAutoLock, setDelaiAutoLock] = useState(5);
 
   useEffect(() => {
     obtenirReglages()
-      .then((r) => setDelaiCopie(r.delaiPressePapiersS))
+      .then((r) => {
+        setDelaiCopie(r.delaiPressePapiersS);
+        setDelaiAutoLock(r.delaiAutoLockMin);
+      })
       .catch(() => undefined);
   }, []);
+
+  // Verrouillage automatique (inactivité + minimisation) → efface les clés.
+  useVerrouillageAuto(delaiAutoLock, () => void verrouiller(), true);
 
   // Formulaire (création/édition) et confirmation de suppression.
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);

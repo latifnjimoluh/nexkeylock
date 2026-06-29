@@ -5,7 +5,7 @@
 > aucune cryptographie**. Cible : Windows / macOS / Linux, avec une déclinaison
 > **mobile (iOS/Android) anticipée mais différée**.
 >
-> **Statut : VALIDÉE — F0→F7 terminés ; suite F8→.** Décisions actées :
+> **Statut : VALIDÉE — F0→F8 terminés ; reste F9 (empaquetage).** Décisions actées :
 > frontend **français**, **vérification de fuite en ligne opt-in** (HIBP
 > k-anonymat, préfixe seulement, côté Rust), **biométrie bureau dès F7 « au
 > mieux »** (Windows Hello).
@@ -212,11 +212,15 @@ persistent via `CoffreDeverrouille::enregistrer`.
 | Intégration commandes | tests Rust (`#[test]`) | chaque commande contre un vrai coffre |
 | E2E | `tauri-driver` / Playwright | création, unlock, ajout, reveal/copy, génération, lock |
 
-> **Note d'exécution** : aux jalons F1–F7, la « couche de commandes » est validée
-> par des tests d'intégration **Rust** (contre un vrai coffre) et par des tests
-> d'écran (store + pont réels, IPC `invoke` simulée). Le harnais E2E navigateur
-> complet (`tauri-driver` + WebDriver) est **mis en place et exécuté au Jalon F8**
-> (durcissement), pour éviter de réinstaller le pilote à chaque jalon.
+> **Note d'exécution** : la « couche de commandes » est validée par des tests
+> d'intégration **Rust** (contre un vrai coffre) et par des tests d'écran (store +
+> pont réels, IPC `invoke` simulée). Les contrôles de sécurité F8 (auto-lock
+> efface les clés, aucun secret en stockage navigateur, anti-XSS) et
+> d'**accessibilité (axe)** sont automatisés en Vitest. Le harnais **E2E
+> navigateur** (`tauri-driver` + WebDriver externe) est **documenté** dans
+> `apps/nexkeylock-bureau/E2E.md` et exécutable là où le pilote est disponible ;
+> il n'est pas lancé dans l'environnement de développement actuel (dépendance au
+> WebDriver), par honnêteté.
 | Sécurité UI | tests dédiés | pas de secret en stockage navigateur ; presse-papiers ; auto-lock ; mauvais mdp ; anti-XSS |
 | Accessibilité | `axe` | écrans principaux |
 
