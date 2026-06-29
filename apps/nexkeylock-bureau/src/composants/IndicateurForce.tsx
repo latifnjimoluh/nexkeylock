@@ -34,7 +34,9 @@ export function IndicateurForce({ motDePasse }: Proprietes) {
         aria-valuenow={bits}
         aria-label="Force du mot de passe"
       >
-        <div className={`h-full rounded-full transition-all ${COULEUR[niveau]} ${REMPLISSAGE[niveau]}`} />
+        <div
+          className={`h-full rounded-full transition-all ${COULEUR[niveau]} ${REMPLISSAGE[niveau]}`}
+        />
       </div>
       <div className="flex justify-between text-xs text-texte-doux">
         <span>{libelleNiveau(niveau)}</span>

@@ -33,6 +33,7 @@ pub fn run() {
             commandes::modifier_entree,
             commandes::supprimer_entree,
             commandes::generer_mot_de_passe,
+            commandes::copier_texte,
         ])
         .run(tauri::generate_context!());
 

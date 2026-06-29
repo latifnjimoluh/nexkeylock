@@ -121,7 +121,9 @@ export function PanneauDetail({ entree, onToast, onModifier, onSupprimer }: Prop
 function Champ({ etiquette, children }: { etiquette: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium uppercase tracking-wide text-texte-doux">{etiquette}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-texte-doux">
+        {etiquette}
+      </span>
       {children}
     </div>
   );

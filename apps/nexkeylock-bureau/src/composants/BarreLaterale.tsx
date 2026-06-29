@@ -21,7 +21,10 @@ const A_VENIR = [
 /** Navigation latérale par catégorie (deviendra un tiroir/onglets sur mobile). */
 export function BarreLaterale({ categorie, onCategorie }: Proprietes) {
   return (
-    <nav className="flex h-full flex-col gap-1 border-r border-bordure bg-surface p-3" aria-label="Catégories">
+    <nav
+      className="flex h-full flex-col gap-1 border-r border-bordure bg-surface p-3"
+      aria-label="Catégories"
+    >
       {ELEMENTS.map((e) => (
         <button
           key={e.cle}

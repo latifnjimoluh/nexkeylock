@@ -52,8 +52,20 @@ export function AnneauTotp({ id }: Proprietes) {
   return (
     <div className="flex items-center gap-3">
       <span className="font-mono text-2xl tracking-widest text-accent">{code ?? "······"}</span>
-      <svg width="36" height="36" viewBox="0 0 36 36" aria-label={`Expire dans ${restant} secondes`}>
-        <circle cx="18" cy="18" r={RAYON} fill="none" stroke="rgb(var(--c-surface-haute))" strokeWidth="3" />
+      <svg
+        width="36"
+        height="36"
+        viewBox="0 0 36 36"
+        aria-label={`Expire dans ${restant} secondes`}
+      >
+        <circle
+          cx="18"
+          cy="18"
+          r={RAYON}
+          fill="none"
+          stroke="rgb(var(--c-surface-haute))"
+          strokeWidth="3"
+        />
         <circle
           cx="18"
           cy="18"

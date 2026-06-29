@@ -29,7 +29,10 @@ export function EcranVerrouillage() {
   };
 
   return (
-    <CadreAuth titre="NexKeyLock" sousTitre="Saisissez votre mot de passe maître pour déverrouiller.">
+    <CadreAuth
+      titre="NexKeyLock"
+      sousTitre="Saisissez votre mot de passe maître pour déverrouiller."
+    >
       <form onSubmit={soumettre} className="flex flex-col gap-4">
         <ChampMotDePasse
           etiquette="Mot de passe maître"

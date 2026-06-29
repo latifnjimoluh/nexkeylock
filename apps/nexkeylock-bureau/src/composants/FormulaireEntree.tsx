@@ -139,7 +139,11 @@ export function FormulaireEntree({ initiale, onFerme, onEnregistre }: Proprietes
           )}
         </div>
 
-        <Champ etiquette={edition ? "Secret TOTP (laisser vide = inchangé)" : "Secret TOTP (Base32 ou otpauth://)"}>
+        <Champ
+          etiquette={
+            edition ? "Secret TOTP (laisser vide = inchangé)" : "Secret TOTP (Base32 ou otpauth://)"
+          }
+        >
           <input
             value={totp}
             onChange={(e) => setTotp(e.target.value)}

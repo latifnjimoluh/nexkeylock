@@ -27,4 +27,12 @@ describe("GenerateurMotDePasse", () => {
     await userEvent.click(screen.getByRole("button", { name: "Utiliser" }));
     expect(onUtiliser).toHaveBeenCalledWith("Abc123!xyzQ");
   });
+
+  it("renvoie la valeur via « Copier »", async () => {
+    const onCopier = vi.fn();
+    render(<GenerateurMotDePasse onCopier={onCopier} />);
+    await screen.findByText("Abc123!xyzQ");
+    await userEvent.click(screen.getByRole("button", { name: "Copier" }));
+    expect(onCopier).toHaveBeenCalledWith("Abc123!xyzQ");
+  });
 });

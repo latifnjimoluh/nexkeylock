@@ -7,8 +7,11 @@ import { PanneauDetail } from "../composants/PanneauDetail";
 import { FormulaireEntree } from "../composants/FormulaireEntree";
 import { Modale } from "../composants/Modale";
 import { Toast } from "../composants/Toast";
+import { EcranGenerateur } from "./EcranGenerateur";
 import { useBoutique } from "../lib/boutique";
 import { listerEntrees, supprimerEntree, type EntreeApercu } from "../lib/pont";
+
+type Vue = "coffre" | "generateur";
 
 /** Vue principale : barre latérale, liste recherchable, panneau de détail. */
 export function EcranCoffre() {
@@ -21,6 +24,7 @@ export function EcranCoffre() {
   const [idSelectionne, setIdSelectionne] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [rechargement, setRechargement] = useState(0);
+  const [vue, setVue] = useState<Vue>("coffre");
 
   // Formulaire (création/édition) et confirmation de suppression.
   const [formulaireOuvert, setFormulaireOuvert] = useState(false);
@@ -82,7 +86,18 @@ export function EcranCoffre() {
       <header className="flex items-center justify-between border-b border-bordure px-4 py-2">
         <span className="font-semibold">NexKeyLock</span>
         <div className="flex items-center gap-2">
-          <Bouton onClick={ouvrirCreation}>+ Ajouter</Bouton>
+          {vue === "coffre" ? (
+            <>
+              <Bouton onClick={ouvrirCreation}>+ Ajouter</Bouton>
+              <Bouton variante="secondaire" onClick={() => setVue("generateur")}>
+                Générateur
+              </Bouton>
+            </>
+          ) : (
+            <Bouton variante="secondaire" onClick={() => setVue("coffre")}>
+              ← Coffre
+            </Bouton>
+          )}
           <SelecteurTheme />
           <Bouton variante="secondaire" onClick={() => void verrouiller()}>
             Verrouiller
@@ -90,37 +105,43 @@ export function EcranCoffre() {
         </div>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[14rem_22rem_minmax(0,1fr)]">
-        <div className="hidden md:block">
-          <BarreLaterale categorie={categorie} onCategorie={setCategorie} />
+      {vue === "generateur" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <EcranGenerateur onToast={setToast} />
         </div>
+      ) : (
+        <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[14rem_22rem_minmax(0,1fr)]">
+          <div className="hidden md:block">
+            <BarreLaterale categorie={categorie} onCategorie={setCategorie} />
+          </div>
 
-        <div className="min-h-0 border-r border-bordure">
-          <ListeEntrees
-            entrees={filtrees}
-            recherche={recherche}
-            onRecherche={setRecherche}
-            idSelectionne={idSelectionne}
-            onSelection={setIdSelectionne}
-            chargement={chargement}
-          />
-        </div>
-
-        <div className="hidden min-h-0 md:block">
-          {selection ? (
-            <PanneauDetail
-              entree={selection}
-              onToast={setToast}
-              onModifier={() => ouvrirEdition(selection)}
-              onSupprimer={() => setASupprimer(selection)}
+          <div className="min-h-0 border-r border-bordure">
+            <ListeEntrees
+              entrees={filtrees}
+              recherche={recherche}
+              onRecherche={setRecherche}
+              idSelectionne={idSelectionne}
+              onSelection={setIdSelectionne}
+              chargement={chargement}
             />
-          ) : (
-            <div className="flex h-full items-center justify-center p-8 text-center text-texte-doux">
-              Sélectionnez une entrée pour afficher ses détails.
-            </div>
-          )}
+          </div>
+
+          <div className="hidden min-h-0 md:block">
+            {selection ? (
+              <PanneauDetail
+                entree={selection}
+                onToast={setToast}
+                onModifier={() => ouvrirEdition(selection)}
+                onSupprimer={() => setASupprimer(selection)}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-8 text-center text-texte-doux">
+                Sélectionnez une entrée pour afficher ses détails.
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {formulaireOuvert && (
         <FormulaireEntree

@@ -5,12 +5,14 @@ import { Bouton } from "./Bouton";
 interface Proprietes {
   /** Si fourni, affiche un bouton « Utiliser » qui renvoie la valeur générée. */
   onUtiliser?: (valeur: string) => void;
+  /** Si fourni, affiche un bouton « Copier » qui renvoie la valeur générée. */
+  onCopier?: (valeur: string) => void;
 }
 
 type Mode = "motdepasse" | "phrase";
 
 /** Générateur paramétrable (mot de passe ou phrase de passe), entropie en direct. */
-export function GenerateurMotDePasse({ onUtiliser }: Proprietes) {
+export function GenerateurMotDePasse({ onUtiliser, onCopier }: Proprietes) {
   const [mode, setMode] = useState<Mode>("motdepasse");
   const [longueur, setLongueur] = useState(20);
   const [nbMots, setNbMots] = useState(5);
@@ -53,10 +55,16 @@ export function GenerateurMotDePasse({ onUtiliser }: Proprietes) {
   return (
     <div className="flex flex-col gap-4 rounded-jeton border border-bordure bg-surface-haute p-4">
       <div className="flex gap-2">
-        <Bouton variante={mode === "motdepasse" ? "primaire" : "secondaire"} onClick={() => setMode("motdepasse")}>
+        <Bouton
+          variante={mode === "motdepasse" ? "primaire" : "secondaire"}
+          onClick={() => setMode("motdepasse")}
+        >
           Mot de passe
         </Bouton>
-        <Bouton variante={mode === "phrase" ? "primaire" : "secondaire"} onClick={() => setMode("phrase")}>
+        <Bouton
+          variante={mode === "phrase" ? "primaire" : "secondaire"}
+          onClick={() => setMode("phrase")}
+        >
           Phrase de passe
         </Bouton>
       </div>
@@ -80,7 +88,11 @@ export function GenerateurMotDePasse({ onUtiliser }: Proprietes) {
             <Case libelle="Majuscules" coche={majuscules} onChange={setMajuscules} />
             <Case libelle="Chiffres" coche={chiffres} onChange={setChiffres} />
             <Case libelle="Symboles" coche={symboles} onChange={setSymboles} />
-            <Case libelle="Exclure les ambigus" coche={exclureAmbigus} onChange={setExclureAmbigus} />
+            <Case
+              libelle="Exclure les ambigus"
+              coche={exclureAmbigus}
+              onChange={setExclureAmbigus}
+            />
           </div>
         </>
       ) : (
@@ -111,6 +123,11 @@ export function GenerateurMotDePasse({ onUtiliser }: Proprietes) {
         <Bouton variante="secondaire" onClick={() => void generer()}>
           Régénérer
         </Bouton>
+        {onCopier && resultat && !erreur && (
+          <Bouton variante="secondaire" onClick={() => onCopier(resultat.valeur)}>
+            Copier
+          </Bouton>
+        )}
         {onUtiliser && resultat && !erreur && (
           <Bouton onClick={() => onUtiliser(resultat.valeur)}>Utiliser</Bouton>
         )}

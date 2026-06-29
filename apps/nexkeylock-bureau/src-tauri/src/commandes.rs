@@ -117,6 +117,14 @@ pub fn copier_totp(
     presse_papiers::copier_avec_effacement(code, delai_s)
 }
 
+/// Copie un texte fourni (ex. mot de passe généré) dans le presse-papiers, avec
+/// effacement après `delai_s`. La valeur est déjà connue de l'interface (sortie
+/// du générateur) ; on passe par le backend pour l'effacement fiable.
+#[tauri::command]
+pub fn copier_texte(valeur: String, delai_s: u64) -> Result<(), ErreurCommande> {
+    presse_papiers::copier_avec_effacement(valeur, delai_s)
+}
+
 /// Ajoute une entrée et renvoie son identifiant.
 #[tauri::command]
 pub fn ajouter_entree(

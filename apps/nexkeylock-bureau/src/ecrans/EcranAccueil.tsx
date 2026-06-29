@@ -54,7 +54,10 @@ export function EcranAccueil() {
 
   if (code !== null) {
     return (
-      <CadreAuth titre="Code de récupération" sousTitre="Notez-le hors ligne : il ne sera plus jamais affiché.">
+      <CadreAuth
+        titre="Code de récupération"
+        sousTitre="Notez-le hors ligne : il ne sera plus jamais affiché."
+      >
         <div className="flex flex-col gap-4">
           <code className="select-all break-all rounded-jeton border border-bordure bg-surface-haute px-4 py-3 text-center font-mono text-accent">
             {code}
@@ -89,9 +92,7 @@ export function EcranAccueil() {
             autoFocus
           />
           <IndicateurForce motDePasse={motDePasse} />
-          {tropCourt && (
-            <p className="text-xs text-danger">Au moins {LONGUEUR_MIN} caractères.</p>
-          )}
+          {tropCourt && <p className="text-xs text-danger">Au moins {LONGUEUR_MIN} caractères.</p>}
         </div>
 
         <ChampMotDePasse
@@ -99,7 +100,9 @@ export function EcranAccueil() {
           valeur={confirmation}
           onValeur={setConfirmation}
         />
-        {discordance && <p className="text-xs text-danger">Les mots de passe ne correspondent pas.</p>}
+        {discordance && (
+          <p className="text-xs text-danger">Les mots de passe ne correspondent pas.</p>
+        )}
 
         <label className="flex items-center gap-2 text-sm text-texte">
           <input
@@ -111,7 +114,8 @@ export function EcranAccueil() {
         </label>
 
         <p className="rounded-jeton bg-alerte/10 px-3 py-2 text-sm text-alerte">
-          Votre mot de passe maître est <strong>impossible à récupérer</strong>. Conservez-le précieusement.
+          Votre mot de passe maître est <strong>impossible à récupérer</strong>. Conservez-le
+          précieusement.
         </p>
 
         {erreur && (

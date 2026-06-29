@@ -192,3 +192,8 @@ export interface MotDePasseGenere {
 export function genererMotDePasse(options: OptionsGenerateur): Promise<MotDePasseGenere> {
   return invoke<MotDePasseGenere>("generer_mot_de_passe", { options });
 }
+
+/** Copie un texte fourni (ex. sortie du générateur), effacé après `delaiS` s. */
+export function copierTexte(valeur: string, delaiS: number): Promise<void> {
+  return invoke<void>("copier_texte", { valeur, delaiS });
+}
