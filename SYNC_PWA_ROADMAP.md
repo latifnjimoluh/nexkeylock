@@ -4,9 +4,11 @@
 > PC) → tous mes mots de passe**, gratuitement, en restant **zéro-connaissance**,
 > avec une **sécurité renforcée** (second facteur).
 >
-> **Statut : VALIDÉE — S0→S5 faits. Suite : S6 (durcissement PWA) · S7 (déploiement).**
+> **Statut : VALIDÉE — S0→S6 faits. Reste : S7 (déploiement).**
 > S0 second facteur · S1 serveur · S2 synchro bureau · S3 cœur WASM · S4 squelette
-> PWA · S5 PWA fonctionnelle + client de synchro (même compte que le bureau).
+> PWA · S5 PWA fonctionnelle + client de synchro (même compte que le bureau) ·
+> S6 durcissement (cœur WASM dans un **Web Worker** → secrets hors thread UI,
+> verrouillage auto, CSP/SW figés, tests axe ; **WebAuthn différé**, cf. ci-dessous).
 
 ---
 
@@ -125,10 +127,24 @@ Compte = email + mot de passe maître (+ fichier-clé).
 - **Tests** : composants + parcours (création→sync→déverrouillage sur « autre
   appareil » simulé), aucun secret en stockage **en clair**.
 
-### S6 — Durcissement PWA & sécurité
-- CSP/SRI verrouillés, service worker épinglé, **WebAuthn** pour le déverrouillage
-  biométrique (Face ID/empreinte, sans store), verrouillage auto, effacement
-  presse-papiers. **Tests sécurité + axe**.
+### S6 — Durcissement PWA & sécurité **[FAIT]**
+- **Cœur WASM isolé dans un Web Worker** : le coffre déverrouillé et les secrets
+  (clés, mots de passe) ne vivent **jamais sur le thread principal**. L'UI ne
+  reçoit que des métadonnées, un secret précis à la demande (révélation), ou les
+  octets **chiffrés** (stockage/synchro). Bonus : Argon2id (256 Mio) ne gèle plus
+  l'interface.
+- **Verrouillage automatique** (`useVerrouillageAuto`) : inactivité + passage en
+  arrière-plan (`visibilitychange`) → verrouille et purge les secrets révélés.
+- CSP stricte (`'wasm-unsafe-eval'` seul écart, aucun script distant) et service
+  worker via `vite-plugin-pwa`. Synchro en `/sync` **même origine** (pas de CDN).
+- **Tests** : composants, parcours synchro, **accessibilité (axe-core)** sans
+  violation sérieuse/critique.
+- **WebAuthn / biométrie : différé honnêtement.** Le déverrouillage Face ID /
+  empreinte via WebAuthn n'est **pas** implémenté : sur le modèle web (PWA), il
+  protégerait mal tant que le JS peut être altéré par un serveur/MITM compromis
+  (cf. §1), et son intégration propre (rattacher la clé à un authentificateur
+  matériel sans affaiblir le zéro-connaissance) mérite un jalon dédié. À traiter
+  après le déploiement HTTPS (S7), pas avant.
 
 ### S7 — Déploiement & doc
 - Guide d'auto-hébergement (serveur + PWA servie en **HTTPS**), car le multi-

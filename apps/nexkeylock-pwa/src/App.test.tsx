@@ -1,11 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-// Le WASM et IndexedDB ne tournent pas sous jsdom : on les simule pour valider
-// le flux React (le cœur lui-même est testé en natif dans nex-coffre).
-vi.mock("./lib/pont-wasm", () => ({
-  initialiserWasm: vi.fn().mockResolvedValue(undefined),
-  CoffrePwa: { creer: vi.fn(), ouvrir: vi.fn() },
+// Le cœur vit dans un Web Worker (indisponible sous jsdom) : on le simule.
+vi.mock("./lib/coeur", () => ({
+  coeur: {
+    creer: vi.fn(),
+    ouvrir: vi.fn(),
+    lister: vi.fn(),
+    reveler: vi.fn(),
+    ajouter: vi.fn(),
+    octets: vi.fn(),
+    verrouiller: vi.fn(),
+    hashAuth: vi.fn(),
+    generer: vi.fn(),
+    fichierCleRequis: vi.fn(),
+  },
 }));
 vi.mock("./lib/stockage", () => ({
   coffreExiste: vi.fn().mockResolvedValue(false),

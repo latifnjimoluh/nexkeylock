@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// hash_auth est dans le WASM (testé en natif) ; on le simule ici.
-vi.mock("./pont-wasm", () => ({ hash_auth: () => "abcd1234" }));
+// Le cœur (Web Worker WASM) est simulé ; hashAuth renvoie un hash fixe.
+vi.mock("./coeur", () => ({ coeur: { hashAuth: vi.fn().mockResolvedValue("abcd1234") } }));
 
 import * as sync from "./synchro";
 

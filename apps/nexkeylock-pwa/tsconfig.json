@@ -19,5 +19,6 @@
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src"],
+  "exclude": ["src/lib/coeur.worker.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -6,7 +6,7 @@
  * d'authentification est dérivé **dans le WASM** (le mot de passe ne quitte pas
  * l'appareil) ; le blob poussé est le coffre **déjà chiffré**.
  */
-import { hash_auth } from "./pont-wasm";
+import { coeur } from "./coeur";
 
 const RACINE = "/sync";
 const CLE_REVISION = "nexkeylock.sync.revision";
@@ -53,14 +53,16 @@ async function poster(chemin: string, corps: unknown, avecJeton = false): Promis
 
 /** Inscrit un compte (email + mot de passe maître). */
 export async function inscrire(email: string, motDePasse: string): Promise<void> {
-  const rep = await poster("/inscription", { email, hash_auth: hash_auth(email, motDePasse) });
+  const hash = await coeur.hashAuth(email, motDePasse);
+  const rep = await poster("/inscription", { email, hash_auth: hash });
   if (rep.status === 409) throw "Un compte existe déjà pour cet email.";
   if (!rep.ok) throw "Inscription refusée par le serveur.";
 }
 
 /** Se connecte ; mémorise le jeton de session et l'email. */
 export async function connecter(email: string, motDePasse: string): Promise<void> {
-  const rep = await poster("/connexion", { email, hash_auth: hash_auth(email, motDePasse) });
+  const hash = await coeur.hashAuth(email, motDePasse);
+  const rep = await poster("/connexion", { email, hash_auth: hash });
   if (!rep.ok) throw "Identifiants de synchronisation invalides.";
   const v = (await rep.json()) as { jeton?: string };
   if (!v.jeton) throw "Jeton absent de la réponse.";

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { initialiserWasm, CoffrePwa } from "./lib/pont-wasm";
+import { coeur } from "./lib/coeur";
 import { coffreExiste, lireCoffre, ecrireCoffre } from "./lib/stockage";
+import { useVerrouillageAuto } from "./lib/verrouillageAuto";
 import * as sync from "./lib/synchro";
 
 interface EntreeApercu {
@@ -12,18 +13,17 @@ interface EntreeApercu {
 }
 
 /**
- * PWA NexKeyLock (Jalon S5) : cœur WASM + IndexedDB + **synchronisation**.
- * Créer / déverrouiller / lister / révéler / ajouter / verrouiller, et se
- * synchroniser au serveur zéro-connaissance (même compte que l'app de bureau).
+ * PWA NexKeyLock (Jalons S5–S6) : cœur WASM dans un **Web Worker** (l'UI ne gèle
+ * pas, les secrets restent hors du thread principal), IndexedDB, synchronisation
+ * zéro-connaissance, verrouillage automatique.
  *
- * Note : la parité complète d'écrans avec le bureau (édition détaillée, tableau
- * de bord, réglages riches) reste à étoffer ; l'essentiel — multi-appareils via
- * le même serveur — est opérationnel.
+ * Note : la parité d'écrans complète avec le bureau (édition détaillée, tableau
+ * de bord) reste à étoffer ; l'essentiel multi-appareils est opérationnel.
  */
 export function App() {
   const [pret, setPret] = useState(false);
   const [existe, setExiste] = useState(false);
-  const [coffre, setCoffre] = useState<CoffrePwa | null>(null);
+  const [deverrouille, setDeverrouille] = useState(false);
   const [entrees, setEntrees] = useState<EntreeApercu[]>([]);
   const [motDePasse, setMotDePasse] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -32,18 +32,13 @@ export function App() {
 
   useEffect(() => {
     void (async () => {
-      await initialiserWasm();
       setExiste(await coffreExiste());
       setPret(true);
     })();
   }, []);
 
-  const rafraichir = (c: CoffrePwa) => {
-    setEntrees(JSON.parse(c.lister()) as EntreeApercu[]);
-  };
-
-  const persister = async (c: CoffrePwa) => {
-    await ecrireCoffre(c.octets());
+  const rafraichir = async () => {
+    setEntrees(JSON.parse(await coeur.lister()) as EntreeApercu[]);
   };
 
   const agir = async (action: () => Promise<void>) => {
@@ -62,11 +57,11 @@ export function App() {
   const creer = (e: FormEvent) => {
     e.preventDefault();
     void agir(async () => {
-      const c = CoffrePwa.creer(motDePasse, undefined);
-      await persister(c);
-      setCoffre(c);
+      const octets = await coeur.creer(motDePasse, undefined);
+      await ecrireCoffre(octets);
       setExiste(true);
-      rafraichir(c);
+      setDeverrouille(true);
+      await rafraichir();
     });
   };
 
@@ -75,37 +70,44 @@ export function App() {
     void agir(async () => {
       const octets = await lireCoffre();
       if (!octets) throw "aucun coffre";
-      const c = CoffrePwa.ouvrir(octets, motDePasse, undefined);
-      setCoffre(c);
-      rafraichir(c);
+      await coeur.ouvrir(octets, motDePasse, undefined);
+      setDeverrouille(true);
+      await rafraichir();
     });
   };
 
   const ajouterExemple = () =>
     void agir(async () => {
-      if (!coffre) return;
-      const donnees = JSON.stringify({ nom: "Exemple", mot_de_passe: "secret-démo" });
-      coffre.ajouter(donnees, BigInt(Math.floor(Date.now() / 1000)));
-      await persister(coffre);
-      rafraichir(coffre);
+      const octets = await coeur.ajouter(
+        JSON.stringify({ nom: "Exemple", mot_de_passe: "secret-démo" }),
+        Math.floor(Date.now() / 1000),
+      );
+      await ecrireCoffre(octets);
+      await rafraichir();
     });
 
   const reveler = (id: string) =>
     void agir(async () => {
-      if (!coffre) return;
-      setReveles((r) => ({ ...r, [id]: coffre.reveler(id, "mot_de_passe") }));
+      setReveles((r) => ({ ...r, [id]: "…" }));
+      const valeur = await coeur.reveler(id, "mot_de_passe");
+      setReveles((r) => ({ ...r, [id]: valeur }));
     });
 
-  const verrouiller = () => {
-    setCoffre(null);
-    setReveles({});
-  };
+  const verrouiller = () =>
+    void (async () => {
+      await coeur.verrouiller();
+      setDeverrouille(false);
+      setReveles({});
+    })();
+
+  // Verrouillage automatique (inactivité + arrière-plan) quand déverrouillé.
+  useVerrouillageAuto(5, verrouiller, deverrouille);
 
   if (!pret) {
-    return <Centre>Chargement du cœur (WASM)…</Centre>;
+    return <Centre>Chargement…</Centre>;
   }
 
-  if (coffre) {
+  if (deverrouille) {
     return (
       <main className="mx-auto flex w-full max-w-lg flex-col gap-4 p-6">
         <div className="flex items-center justify-between">
@@ -117,7 +119,7 @@ export function App() {
 
         <section className="rounded-jeton border border-bordure bg-surface p-4 shadow-panneau">
           <p className="mb-2 text-sm text-texte-doux">
-            {entrees.length} entrée(s) — cœur Rust en WASM.
+            {entrees.length} entrée(s) — cœur Rust (WASM, Web Worker).
           </p>
           <ul className="flex flex-col gap-1">
             {entrees.map((e) => (
@@ -151,7 +153,7 @@ export function App() {
           </div>
         </section>
 
-        <PanneauSync coffre={coffre} onVerrouiller={verrouiller} />
+        <PanneauSync onVerrouiller={verrouiller} />
 
         {erreur && (
           <p role="alert" className="rounded-jeton bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -195,14 +197,14 @@ export function App() {
           {occupe ? "…" : existe ? "Déverrouiller" : "Créer le coffre"}
         </Bouton>
         <p className="text-center text-xs text-texte-doux">
-          Note : Argon2id (256 Mio) s'exécute dans le navigateur — quelques secondes.
+          Argon2id (256 Mio) s'exécute dans un Web Worker — l'interface reste réactive.
         </p>
       </form>
     </Centre>
   );
 }
 
-function PanneauSync({ coffre, onVerrouiller }: { coffre: CoffrePwa; onVerrouiller: () => void }) {
+function PanneauSync({ onVerrouiller }: { onVerrouiller: () => void }) {
   const [email, setEmail] = useState(sync.emailMemorise());
   const [motDePasse, setMotDePasse] = useState("");
   const [connecte, setConnecte] = useState(sync.connecte());
@@ -283,7 +285,7 @@ function PanneauSync({ coffre, onVerrouiller }: { coffre: CoffrePwa; onVerrouill
             disabled={occupe}
             onClick={() =>
               agir(async () => {
-                const r = await sync.pousser(coffre.octets());
+                const r = await sync.pousser(await coeur.octets());
                 if (r.accepte) {
                   setConflit(false);
                   setMessage(`Envoyé (révision ${r.revision}).`);
@@ -323,7 +325,7 @@ function PanneauSync({ coffre, onVerrouiller }: { coffre: CoffrePwa; onVerrouill
             disabled={occupe}
             onClick={() =>
               agir(async () => {
-                const r = await sync.forcer(coffre.octets());
+                const r = await sync.forcer(await coeur.octets());
                 if (r.accepte) {
                   setConflit(false);
                   setMessage(`Version locale imposée (révision ${r.revision}).`);
