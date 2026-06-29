@@ -257,6 +257,9 @@ export function verifierFuites(): Promise<ElementFuite[]> {
 export interface Reglages {
   delaiAutoLockMin: number;
   delaiPressePapiersS: number;
+  serveurSync: string | null;
+  emailSync: string | null;
+  revisionSync: number;
 }
 
 /** Lit les réglages. */
@@ -306,4 +309,45 @@ export interface MajInfo {
 /** Vérifie la disponibilité d'une mise à jour. */
 export function verifierMaj(): Promise<MajInfo> {
   return invoke<MajInfo>("verifier_maj");
+}
+
+/** Résultat d'un envoi de synchronisation. */
+export interface RetourPoussee {
+  accepte: boolean;
+  revision: number;
+}
+
+/** Résultat d'un tirage de synchronisation. */
+export interface RetourTirage {
+  recupere: boolean;
+  revision: number;
+}
+
+/** Inscrit un compte de synchronisation. */
+export function synchroInscrire(serveur: string, email: string, motDePasse: string): Promise<void> {
+  return invoke<void>("synchro_inscrire", { serveur, email, motDePasse });
+}
+
+/** Se connecte à la synchronisation. */
+export function synchroConnecter(
+  serveur: string,
+  email: string,
+  motDePasse: string,
+): Promise<void> {
+  return invoke<void>("synchro_connecter", { serveur, email, motDePasse });
+}
+
+/** Pousse le coffre chiffré vers le serveur. */
+export function synchroPousser(): Promise<RetourPoussee> {
+  return invoke<RetourPoussee>("synchro_pousser");
+}
+
+/** Force l'envoi (écrase le distant). */
+export function synchroForcer(): Promise<RetourPoussee> {
+  return invoke<RetourPoussee>("synchro_forcer");
+}
+
+/** Tire le coffre distant (remplace le local, verrouille). */
+export function synchroTirer(): Promise<RetourTirage> {
+  return invoke<RetourTirage>("synchro_tirer");
 }

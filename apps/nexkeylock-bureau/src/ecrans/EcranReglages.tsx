@@ -13,6 +13,11 @@ import {
   verifierMaj,
   versionCoeur,
   estErreurCommande,
+  synchroInscrire,
+  synchroConnecter,
+  synchroPousser,
+  synchroForcer,
+  synchroTirer,
   type Reglages,
   type ParametresKdf,
 } from "../lib/pont";
@@ -149,6 +154,8 @@ export function EcranReglages({ onToast, onCoffreChange }: Proprietes) {
         </p>
       </Section>
 
+      <Synchronisation reglages={reglages} onToast={onToast} onCoffreChange={onCoffreChange} />
+
       <APropos version={version} onToast={onToast} />
     </main>
   );
@@ -189,6 +196,179 @@ function ChangementMotDePasse({ onToast }: { onToast: (m: string) => void }) {
       <Bouton onClick={() => void soumettre()} disabled={!valide || occupe}>
         {occupe ? "Changement…" : "Changer le mot de passe"}
       </Bouton>
+    </Section>
+  );
+}
+
+function Synchronisation({
+  reglages,
+  onToast,
+  onCoffreChange,
+}: {
+  reglages: Reglages | null;
+  onToast: (m: string) => void;
+  onCoffreChange: () => void;
+}) {
+  const [serveur, setServeur] = useState("");
+  const [email, setEmail] = useState("");
+  const [motDePasse, setMotDePasse] = useState("");
+  const [conflit, setConflit] = useState(false);
+  const [occupe, setOccupe] = useState(false);
+
+  // Pré-remplit depuis les réglages chargés.
+  useEffect(() => {
+    if (reglages) {
+      setServeur(reglages.serveurSync ?? "http://127.0.0.1:8787");
+      setEmail(reglages.emailSync ?? "");
+    }
+  }, [reglages]);
+
+  const lancer = async (action: () => Promise<void>) => {
+    setOccupe(true);
+    try {
+      await action();
+    } catch (e) {
+      onToast(estErreurCommande(e) ? e.message : "Opération de synchronisation impossible.");
+    } finally {
+      setOccupe(false);
+    }
+  };
+
+  const requis = serveur.length > 0 && email.length > 0 && motDePasse.length > 0;
+
+  return (
+    <Section titre="Synchronisation (zéro-connaissance)">
+      <p className="text-sm text-texte-doux">
+        Le serveur ne reçoit que votre coffre <strong>chiffré</strong> et un identifiant
+        d'authentification ; jamais votre mot de passe ni vos données.
+      </p>
+      <Ligne libelle="Serveur">
+        <input
+          value={serveur}
+          onChange={(e) => setServeur(e.target.value)}
+          placeholder="http://127.0.0.1:8787"
+          className="w-64 rounded-jeton border border-bordure bg-surface px-3 py-1.5 text-texte"
+        />
+      </Ligne>
+      <Ligne libelle="Email du compte">
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-64 rounded-jeton border border-bordure bg-surface px-3 py-1.5 text-texte"
+        />
+      </Ligne>
+      <ChampMotDePasse
+        etiquette="Mot de passe maître (pour s'authentifier)"
+        valeur={motDePasse}
+        onValeur={setMotDePasse}
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <Bouton
+          variante="secondaire"
+          disabled={occupe || !requis}
+          onClick={() =>
+            void lancer(async () => {
+              await synchroInscrire(serveur, email, motDePasse);
+              onToast("Compte créé sur le serveur.");
+            })
+          }
+        >
+          S'inscrire
+        </Bouton>
+        <Bouton
+          disabled={occupe || !requis}
+          onClick={() =>
+            void lancer(async () => {
+              await synchroConnecter(serveur, email, motDePasse);
+              setMotDePasse("");
+              onToast("Connecté à la synchronisation.");
+            })
+          }
+        >
+          Se connecter
+        </Bouton>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Bouton
+          variante="secondaire"
+          disabled={occupe}
+          onClick={() =>
+            void lancer(async () => {
+              const r = await synchroPousser();
+              if (r.accepte) {
+                setConflit(false);
+                onToast(`Coffre envoyé (révision ${r.revision}).`);
+              } else {
+                setConflit(true);
+                onToast("Conflit : le coffre distant a changé.");
+              }
+            })
+          }
+        >
+          Pousser
+        </Bouton>
+        <Bouton
+          variante="secondaire"
+          disabled={occupe}
+          onClick={() =>
+            void lancer(async () => {
+              const r = await synchroTirer();
+              if (r.recupere) {
+                onToast("Coffre distant récupéré — déverrouillez-le.");
+                onCoffreChange();
+              } else {
+                onToast("Rien à récupérer sur le serveur.");
+              }
+            })
+          }
+        >
+          Tirer
+        </Bouton>
+      </div>
+
+      {conflit && (
+        <div className="rounded-jeton bg-alerte/10 p-3 text-sm">
+          <p className="mb-2 text-alerte">
+            Conflit détecté. Choisissez : garder votre version locale (forcer) ou récupérer la
+            version distante (vos changements locaux non envoyés seront perdus).
+          </p>
+          <div className="flex gap-2">
+            <Bouton
+              variante="danger"
+              disabled={occupe}
+              onClick={() =>
+                void lancer(async () => {
+                  const r = await synchroForcer();
+                  if (r.accepte) {
+                    setConflit(false);
+                    onToast(`Version locale imposée (révision ${r.revision}).`);
+                  }
+                })
+              }
+            >
+              Forcer (garder local)
+            </Bouton>
+            <Bouton
+              variante="secondaire"
+              disabled={occupe}
+              onClick={() =>
+                void lancer(async () => {
+                  const r = await synchroTirer();
+                  if (r.recupere) {
+                    setConflit(false);
+                    onToast("Version distante récupérée — déverrouillez-le.");
+                    onCoffreChange();
+                  }
+                })
+              }
+            >
+              Tirer (récupérer distant)
+            </Bouton>
+          </div>
+        </div>
+      )}
     </Section>
   );
 }

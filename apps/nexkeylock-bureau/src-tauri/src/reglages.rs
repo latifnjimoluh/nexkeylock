@@ -26,6 +26,15 @@ pub struct Reglages {
     /// Délai avant effacement du presse-papiers, en secondes.
     #[serde(default = "defaut_presse_papiers")]
     pub delai_presse_papiers_s: u64,
+    /// URL du serveur de synchronisation (ex. `http://127.0.0.1:8787`), le cas échéant.
+    #[serde(default)]
+    pub serveur_sync: Option<String>,
+    /// Email du compte de synchronisation, le cas échéant.
+    #[serde(default)]
+    pub email_sync: Option<String>,
+    /// Dernière révision synchronisée connue (concurrence optimiste).
+    #[serde(default)]
+    pub revision_sync: u64,
 }
 
 impl Default for Reglages {
@@ -33,6 +42,9 @@ impl Default for Reglages {
         Self {
             delai_auto_lock_min: defaut_auto_lock(),
             delai_presse_papiers_s: defaut_presse_papiers(),
+            serveur_sync: None,
+            email_sync: None,
+            revision_sync: 0,
         }
     }
 }

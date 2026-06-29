@@ -9,6 +9,7 @@ mod etat;
 mod fuites;
 mod presse_papiers;
 mod reglages;
+mod synchro;
 
 use etat::EtatPartage;
 
@@ -62,6 +63,11 @@ pub fn run() {
             commandes::verifier_maj,
             commandes::fichier_cle_requise,
             commandes::generer_fichier_cle,
+            commandes::synchro_inscrire,
+            commandes::synchro_connecter,
+            commandes::synchro_pousser,
+            commandes::synchro_forcer,
+            commandes::synchro_tirer,
         ])
         .run(tauri::generate_context!());
 

@@ -18,6 +18,7 @@ use crate::etat::{
 };
 use crate::presse_papiers;
 use crate::reglages::Reglages;
+use crate::synchro;
 
 /// Version de l'application (pour la vérification de mise à jour).
 const VERSION_APP: &str = env!("CARGO_PKG_VERSION");
@@ -100,6 +101,143 @@ pub fn generer_fichier_cle(chemin: String) -> Result<(), ErreurCommande> {
     std::fs::write(&chemin, secret.as_slice())
         .map_err(|_| ErreurCommande::interne("Écriture du fichier-clé impossible."))?;
     Ok(())
+}
+
+/// Résultat d'un envoi de synchronisation.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetourPoussee {
+    /// `false` en cas de conflit (le distant a changé) ; `revision` = révision serveur.
+    pub accepte: bool,
+    pub revision: u64,
+}
+
+/// Résultat d'un tirage de synchronisation.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RetourTirage {
+    /// `false` si rien à distance.
+    pub recupere: bool,
+    pub revision: u64,
+}
+
+/// Enregistre l'URL du serveur et l'email de synchronisation.
+fn memoriser_compte(serveur: &str, email: &str) -> Result<(), ErreurCommande> {
+    let mut r = crate::reglages::Reglages::charger()?;
+    r.serveur_sync = Some(serveur.to_string());
+    r.email_sync = Some(email.to_string());
+    r.enregistrer()
+}
+
+/// Inscrit un compte de synchronisation sur le serveur.
+#[tauri::command]
+pub fn synchro_inscrire(
+    serveur: String,
+    email: String,
+    mot_de_passe: String,
+) -> Result<(), ErreurCommande> {
+    let mdp = Zeroizing::new(mot_de_passe);
+    synchro::inscrire(&serveur, &email, mdp.as_str())?;
+    memoriser_compte(&serveur, &email)
+}
+
+/// Se connecte à la synchronisation (mémorise le jeton de session).
+#[tauri::command]
+pub fn synchro_connecter(
+    serveur: String,
+    email: String,
+    mot_de_passe: String,
+    etat: State<'_, EtatPartage>,
+) -> Result<(), ErreurCommande> {
+    let mdp = Zeroizing::new(mot_de_passe);
+    let jeton = synchro::connecter(&serveur, &email, mdp.as_str())?;
+    etat.acceder()?.definir_jeton_sync(jeton);
+    memoriser_compte(&serveur, &email)
+}
+
+/// Récupère l'URL du serveur, le jeton et le chemin du coffre (verrou bref).
+fn contexte_sync(
+    etat: &State<'_, EtatPartage>,
+) -> Result<(String, String, std::path::PathBuf), ErreurCommande> {
+    let reglages = crate::reglages::Reglages::charger()?;
+    let serveur = reglages
+        .serveur_sync
+        .ok_or_else(|| ErreurCommande::interne("Synchronisation non configurée."))?;
+    let garde = etat.acceder()?;
+    let jeton = garde
+        .jeton_sync()
+        .ok_or_else(|| ErreurCommande::interne("Non connecté à la synchronisation."))?
+        .to_string();
+    Ok((serveur, jeton, garde.chemin().to_path_buf()))
+}
+
+/// Pousse le coffre chiffré vers le serveur.
+#[tauri::command]
+pub fn synchro_pousser(etat: State<'_, EtatPartage>) -> Result<RetourPoussee, ErreurCommande> {
+    let (serveur, jeton, chemin) = contexte_sync(&etat)?;
+    let octets = std::fs::read(&chemin)
+        .map_err(|_| ErreurCommande::interne("Lecture du coffre impossible."))?;
+    let base = crate::reglages::Reglages::charger()?.revision_sync;
+    match synchro::pousser(&serveur, &jeton, base, &octets)? {
+        synchro::ResultatPoussee::Accepte(revision) => {
+            enregistrer_revision(revision)?;
+            Ok(RetourPoussee {
+                accepte: true,
+                revision,
+            })
+        }
+        synchro::ResultatPoussee::Conflit(actuelle) => Ok(RetourPoussee {
+            accepte: false,
+            revision: actuelle,
+        }),
+    }
+}
+
+/// Force l'envoi en écrasant le distant (résolution de conflit « garder local »).
+#[tauri::command]
+pub fn synchro_forcer(etat: State<'_, EtatPartage>) -> Result<RetourPoussee, ErreurCommande> {
+    let (serveur, jeton, chemin) = contexte_sync(&etat)?;
+    let (revision_distante, _) = synchro::tirer(&serveur, &jeton)?;
+    let octets = std::fs::read(&chemin)
+        .map_err(|_| ErreurCommande::interne("Lecture du coffre impossible."))?;
+    match synchro::pousser(&serveur, &jeton, revision_distante, &octets)? {
+        synchro::ResultatPoussee::Accepte(revision) => {
+            enregistrer_revision(revision)?;
+            Ok(RetourPoussee {
+                accepte: true,
+                revision,
+            })
+        }
+        synchro::ResultatPoussee::Conflit(actuelle) => Ok(RetourPoussee {
+            accepte: false,
+            revision: actuelle,
+        }),
+    }
+}
+
+/// Tire le coffre distant (remplace le local après validation ; verrouille).
+#[tauri::command]
+pub fn synchro_tirer(etat: State<'_, EtatPartage>) -> Result<RetourTirage, ErreurCommande> {
+    let (serveur, jeton, _) = contexte_sync(&etat)?;
+    let (revision, blob) = synchro::tirer(&serveur, &jeton)?;
+    if blob.is_empty() {
+        return Ok(RetourTirage {
+            recupere: false,
+            revision,
+        });
+    }
+    etat.acceder()?.remplacer_fichier(&blob)?;
+    enregistrer_revision(revision)?;
+    Ok(RetourTirage {
+        recupere: true,
+        revision,
+    })
+}
+
+fn enregistrer_revision(revision: u64) -> Result<(), ErreurCommande> {
+    let mut r = crate::reglages::Reglages::charger()?;
+    r.revision_sync = revision;
+    r.enregistrer()
 }
 
 /// Verrouille le coffre (efface la DEK et le contenu en mémoire).

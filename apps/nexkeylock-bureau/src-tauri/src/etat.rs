@@ -130,6 +130,8 @@ pub struct DonneesEntree {
 pub struct EtatCoffre {
     chemin: PathBuf,
     coffre: Option<CoffreDeverrouille>,
+    /// Jeton de session de synchronisation (en mémoire, non persisté).
+    jeton_sync: Option<String>,
 }
 
 impl EtatCoffre {
@@ -143,7 +145,44 @@ impl EtatCoffre {
         Self {
             chemin,
             coffre: None,
+            jeton_sync: None,
         }
+    }
+
+    /// Chemin du fichier de coffre.
+    pub fn chemin(&self) -> &Path {
+        &self.chemin
+    }
+
+    /// Jeton de session de synchronisation, le cas échéant.
+    pub fn jeton_sync(&self) -> Option<&str> {
+        self.jeton_sync.as_deref()
+    }
+
+    /// Définit le jeton de session de synchronisation.
+    pub fn definir_jeton_sync(&mut self, jeton: String) {
+        self.jeton_sync = Some(jeton);
+    }
+
+    /// Remplace le fichier de coffre par un blob distant **après validation**
+    /// (écriture temporaire + ouverture), puis verrouille (re-déverrouillage
+    /// requis avec le contenu importé). N'écrase jamais sur un blob invalide.
+    pub fn remplacer_fichier(&mut self, octets: &[u8]) -> Result<(), ErreurCommande> {
+        let mut tmp = self.chemin.clone().into_os_string();
+        tmp.push(".sync-tmp");
+        let tmp = PathBuf::from(tmp);
+        std::fs::write(&tmp, octets)
+            .map_err(|_| ErreurCommande::interne("Écriture du coffre distant impossible."))?;
+        if CoffreVerrouille::ouvrir(&tmp).is_err() {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(ErreurCommande::interne(
+                "Coffre distant invalide ; remplacement annulé.",
+            ));
+        }
+        std::fs::rename(&tmp, &self.chemin)
+            .map_err(|_| ErreurCommande::interne("Remplacement du coffre impossible."))?;
+        self.coffre = None;
+        Ok(())
     }
 
     /// Indique si un fichier de coffre existe.
