@@ -1,0 +1,30 @@
+/* Jetons de couleur NexKeyLock (mêmes que l'app de bureau). Sombre par défaut. */
+
+:root,
+[data-theme="sombre"] {
+  --c-fond: 15 18 24;
+  --c-surface: 23 27 35;
+  --c-surface-haute: 31 37 48;
+  --c-bordure: 45 52 66;
+  --c-texte: 233 237 243;
+  --c-texte-doux: 156 166 183;
+  --c-accent: 96 165 250;
+  --c-accent-contraste: 8 12 18;
+  --c-succes: 52 211 153;
+  --c-alerte: 251 191 36;
+  --c-danger: 248 113 113;
+}
+
+[data-theme="clair"] {
+  --c-fond: 247 248 250;
+  --c-surface: 255 255 255;
+  --c-surface-haute: 241 243 246;
+  --c-bordure: 220 224 230;
+  --c-texte: 23 27 35;
+  --c-texte-doux: 91 100 114;
+  --c-accent: 37 99 235;
+  --c-accent-contraste: 255 255 255;
+  --c-succes: 5 150 105;
+  --c-alerte: 217 119 6;
+  --c-danger: 220 38 38;
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!--
+      CSP stricte. `wasm-unsafe-eval` est requis pour instancier le WebAssembly
+      du cœur (et UNIQUEMENT cela : pas de eval JS). connect-src autorise l'API
+      du serveur de synchro (à restreindre à votre domaine en déploiement).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
+    />
+    <meta name="theme-color" content="#0f1218" />
+    <title>NexKeyLock</title>
+  </head>
+  <body>
+    <div id="racine"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

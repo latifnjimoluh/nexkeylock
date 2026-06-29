@@ -1,0 +1,9 @@
+node_modules
+dist
+dev-dist
+coverage
+*.local
+# Paquet WASM généré (produit par scripts/construire-wasm) :
+src/coeur-wasm
+.DS_Store
+Thumbs.db
